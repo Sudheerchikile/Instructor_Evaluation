@@ -51,15 +51,24 @@ export default function LoginPage() {
     e.preventDefault();
     setSignInError('');
     setSignInLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    const result = authenticateWithEmail(signInEmail, signInPassword);
-    setSignInLoading(false);
-    if (!result.success || !result.user) {
-      setSignInError(result.error ?? 'Authentication failed.');
-      return;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signInEmail, password: signInPassword }),
+      });
+      const data = await res.json();
+      setSignInLoading(false);
+      if (!res.ok || !data.success || !data.user) {
+        setSignInError(data.error ?? 'Authentication failed.');
+        return;
+      }
+      saveStoredCurrentUser(data.user);
+      router.push('/');
+    } catch (err: any) {
+      setSignInLoading(false);
+      setSignInError(err.message || 'Authentication error.');
     }
-    saveStoredCurrentUser(result.user);
-    router.push('/');
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -70,14 +79,31 @@ export default function LoginPage() {
     if (!regEmail.includes('@')) { setRegError('Please enter a valid email address.'); return; }
     if (regPassword.length < 6) { setRegError('Password must be at least 6 characters.'); return; }
     setRegLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    const result = registerInstructor(regName, regEmail, regPassword, regHall);
-    setRegLoading(false);
-    if (!result.success || !result.user) { setRegError(result.error ?? 'Registration failed.'); return; }
-    setRegSuccess('Account created! Signing you in...');
-    await new Promise((r) => setTimeout(r, 800));
-    saveStoredCurrentUser(result.user);
-    router.push('/');
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: regName,
+          email: regEmail,
+          password: regPassword,
+          hall: regHall,
+        }),
+      });
+      const data = await res.json();
+      setRegLoading(false);
+      if (!res.ok || !data.success || !data.user) {
+        setRegError(data.error ?? 'Registration failed.');
+        return;
+      }
+      setRegSuccess('Account created! Signing you in...');
+      await new Promise((r) => setTimeout(r, 600));
+      saveStoredCurrentUser(data.user);
+      router.push('/');
+    } catch (err: any) {
+      setRegLoading(false);
+      setRegError(err.message || 'Registration error.');
+    }
   };
 
   const inp = 'w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500';

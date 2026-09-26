@@ -1,0 +1,73 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("instructor")
+  hall         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Student {
+  id                  String           @id
+  name                String
+  degree              String           @default("BITS")
+  section             String           @default("S001")
+  level               String           @default("Level 0")
+  currentStep         String?          @default("1.0 Introduction")
+  currentTopic        String?          @default("1.0 Introduction")
+  hall                String           @default("Hall 1")
+  instructor          String           @default("Unassigned")
+  instructorEmail     String?
+  interactionCount    Int              @default(0)
+  status              String           @default("Pending Interaction 1")
+  lastInteractionDate String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  interactions        InteractionLog[]
+
+  @@index([instructor])
+  @@index([level])
+  @@map("students")
+}
+
+model InteractionLog {
+  id                    String   @id @default(cuid())
+  studentId             String
+  studentName           String
+  instructorName        String
+  instructorEmail      String?
+  topics                String
+  statusPostInteraction String
+  rating                Float    @default(0.0)
+  questionsAsked        String   @db.Text
+  remarks               String   @db.Text
+  performedWell         String   @db.Text
+  improvementAreas      String   @db.Text
+  tweakedQuestions      String   @db.Text
+  actionItems           String   @db.Text
+  meetRecording         String   @db.Text
+  granolaTranscript     String   @db.Text
+  interactionRound      Int      @default(1)
+  date                  String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([instructorName])
+  @@map("interaction_logs")
+}
