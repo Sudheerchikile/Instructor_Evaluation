@@ -1,0 +1,524 @@
+[
+  {
+    "step": "0",
+    "id": "step-0",
+    "title": "Programming Language Setup",
+    "suggestedTimeMins": 0,
+    "questionRule": "Skip directly to Step 2 or Step 1. Not a theory validated topic.",
+    "hintRule": "None",
+    "mandatory": false,
+    "expectation": "Programming Language is not a theory validated topic. No conceptual or complexity questions are asked. Skip directly to Step 2 or Step 1.0.",
+    "questions": []
+  },
+  {
+    "step": "1.0",
+    "id": "step-1-0",
+    "title": "1.0 Introduction",
+    "suggestedTimeMins": 10,
+    "questionRule": "Ask as much as you can to gauge basic familiarity",
+    "hintRule": "Open discussion & hints",
+    "mandatory": false,
+    "expectation": "Verify familiarity with C++ boilerplate, compilation, syntax, I/O, and variable fundamentals.",
+    "questions": [
+      {
+        "id": "intro-1",
+        "title": "What is a programming language?"
+      },
+      {
+        "id": "intro-2",
+        "title": "Why do we write #include <iostream>?"
+      },
+      {
+        "id": "intro-3",
+        "title": "What is the purpose of the main() function?"
+      },
+      {
+        "id": "intro-4",
+        "title": "What is a header file?"
+      },
+      {
+        "id": "intro-5",
+        "title": "How do you print output in C++?"
+      },
+      {
+        "id": "intro-6",
+        "title": "How do you read input in C++?"
+      },
+      {
+        "id": "intro-7",
+        "title": "What is the difference between cin and cout?"
+      },
+      {
+        "id": "intro-8",
+        "title": "What is the purpose of a semicolon?"
+      },
+      {
+        "id": "intro-9",
+        "title": "How do you take multiple inputs in one line?"
+      },
+      {
+        "id": "intro-10",
+        "title": "What does endl do?"
+      },
+      {
+        "id": "intro-11",
+        "title": "What is a variable?"
+      },
+      {
+        "id": "intro-12",
+        "title": "How do you declare a variable?"
+      },
+      {
+        "id": "intro-13",
+        "title": "How do you initialize a variable?"
+      },
+      {
+        "id": "intro-14",
+        "title": "What is a data type?"
+      },
+      {
+        "id": "intro-15",
+        "title": "What is the size of int in bytes?"
+      },
+      {
+        "id": "intro-16",
+        "title": "What is the size of char in bytes?"
+      },
+      {
+        "id": "intro-17",
+        "title": "What is the purpose of bool?"
+      },
+      {
+        "id": "intro-18",
+        "title": "What values can a bool store?"
+      },
+      {
+        "id": "intro-19",
+        "title": "What is type casting?"
+      },
+      {
+        "id": "intro-20",
+        "title": "What is the ASCII value of 'A' and 'a'?"
+      },
+      {
+        "id": "intro-21",
+        "title": "Difference between single quotes ' ' and double quotes \" \"?"
+      },
+      {
+        "id": "intro-22",
+        "title": "Difference between a variable and a constant?"
+      }
+    ]
+  },
+  {
+    "step": "1.1",
+    "id": "step-1-1",
+    "title": "1.1 Data Types",
+    "suggestedTimeMins": 25,
+    "questionRule": "Pick any 5 from the pool",
+    "hintRule": "If needed, 1 or 2 hints based on student's logic & progress",
+    "mandatory": true,
+    "passCriteria": "Must solve at least 4 out of 5 correctly (4/5)",
+    "expectation": "Candidate should be able to take input & print required output for all questions asked. If not solved, student needs to revisit '1.1 Data Types' and stop interaction.",
+    "questions": [
+      {
+        "id": "dt-1",
+        "title": "1. Big Sum",
+        "description": "Read two integers that may be as large as 10^18. Print their sum. (Tests long long)"
+      },
+      {
+        "id": "dt-2",
+        "title": "2. Float Equality",
+        "description": "Read three floating point numbers. Print YES if sum of first two equals third within tolerance 1e-6, else NO."
+      },
+      {
+        "id": "dt-3",
+        "title": "3. Shift the Letter",
+        "description": "Read a lowercase letter. Print the letter three positions ahead in the alphabet, wrapping around after z."
+      },
+      {
+        "id": "dt-4",
+        "title": "4. Division Trap",
+        "description": "Read two integers. Print their integer division result and true floating point division result on separate lines."
+      },
+      {
+        "id": "dt-5",
+        "title": "5. ASCII Neighbour",
+        "description": "Read a single character. Print its ASCII code and the character whose code is one greater."
+      },
+      {
+        "id": "dt-6",
+        "title": "6. Truthy Print",
+        "description": "Read an integer. Print 1 if non-zero and 0 otherwise, without using an if statement."
+      },
+      {
+        "id": "dt-7",
+        "title": "7. Fits in 32 Bits",
+        "description": "Read an integer. Print YES if it fits in a 32-bit signed integer range, else NO."
+      },
+      {
+        "id": "dt-8",
+        "title": "8. Three Roundings",
+        "description": "Read a floating point number. Print its floor, ceiling and nearest rounded value on separate lines."
+      },
+      {
+        "id": "dt-9",
+        "title": "9. Triple Product Overflow",
+        "description": "Read three integers, each up to 10^6. Print their product. (Tests overflow handling with long long)"
+      },
+      {
+        "id": "dt-10",
+        "title": "10. Digit Character to Number",
+        "description": "Read a single digit character ('0'-'9'). Print twice its numeric value."
+      },
+      {
+        "id": "dt-11",
+        "title": "11. Mixed Sum",
+        "description": "Read one integer and one float. Print their sum correct to two decimal places."
+      },
+      {
+        "id": "dt-12",
+        "title": "12. Negative Remainder",
+        "description": "Read two integers where first may be negative. Print remainder when first is divided by second."
+      },
+      {
+        "id": "dt-13",
+        "title": "13. Long Factorial",
+        "description": "Read integer n (n <= 20). Print n factorial. (Requires long long)"
+      },
+      {
+        "id": "dt-14",
+        "title": "14. Average of Three",
+        "description": "Read three integers. Print their average correct to two decimal places."
+      },
+      {
+        "id": "dt-15",
+        "title": "15. Char Sum",
+        "description": "Read two lowercase letters. Print the sum of their positions in alphabet (1-based: a=1, b=2... z=26)."
+      },
+      {
+        "id": "dt-16",
+        "title": "16. Fits in Unsigned Integer Range",
+        "description": "Read an integer. Print YES if it fits in an unsigned integer range, else NO."
+      },
+      {
+        "id": "dt-17",
+        "title": "17. Boolean Subtraction / Addition",
+        "description": "Tell output: int a = true, b = false; cout << a - b; or int a = true, b = true; cout << (a + b);"
+      },
+      {
+        "id": "dt-18",
+        "title": "18. Float Comparison Precision",
+        "description": "Tell output: float a = 6.753; if(a == 6.753) cout << \"Yes\"; else cout << \"No\"; (Tests float vs double literal promotion)"
+      }
+    ]
+  },
+  {
+    "step": "1.2",
+    "id": "step-1-2",
+    "title": "1.2 If Else",
+    "suggestedTimeMins": 20,
+    "questionRule": "Pick any 2 (1 from theoretical reasoning, 1 from problem links)",
+    "hintRule": "If needed, 1 or 2 hints based on student's logic & progress",
+    "mandatory": true,
+    "passCriteria": "Correct logic and implementation with proper explanation",
+    "expectation": "Candidate should write correct if-else conditions with proper explanation. If unable to solve, revisit '1.2 If Else Conditions' and stop interaction.",
+    "questions": [
+      {
+        "id": "ie-1",
+        "title": "1. Largest and Smallest of 4 Integers",
+        "description": "Given 4 integer values, find and print the largest and smallest value using only if-else."
+      },
+      {
+        "id": "ie-2",
+        "title": "2. FizzBuzz Logic",
+        "description": "Given integer N, print 'FizzBuzz' if divisible by both 3 and 5, 'Fizz' if divisible by 3, 'Buzz' if divisible by 5, else N."
+      },
+      {
+        "id": "ie-3",
+        "title": "3. Valid Triangle Classification",
+        "description": "Take 3 side lengths as input. First check if valid triangle (sum of any 2 > 3rd). If valid, classify as Equilateral, Isosceles, or Scalene. If not valid, print 'not valid'."
+      },
+      {
+        "id": "ie-4",
+        "title": "4. Loan Eligibility Checker",
+        "description": "Rules: age < 18 -> Rejected (Underage); income < 20000 -> Rejected (Low Income); credit_score < 600 -> Rejected (Poor Credit); credit 600-749 -> Approved Standard; credit >= 750: existing_loans > 2 -> Standard, else Premium."
+      },
+      {
+        "id": "ie-5",
+        "title": "5. Exam Result with Re-evaluation",
+        "description": "total_marks < 0 or > 300 -> Invalid Marks; attendance < 75 -> Debarred; marks < 105 -> Fail; marks 105-179 -> Fail (Backlog) if backlog > 0 else Pass; marks >= 180: Distinction if >= 270 else First Class."
+      },
+      {
+        "id": "ie-link-1",
+        "title": "AtCoder ABC132_A: Fifty-Fifty",
+        "description": "Check if string of length 4 contains exactly two distinct characters occurring twice.",
+        "url": "https://atcoder.jp/contests/abc132/tasks/abc132_a"
+      },
+      {
+        "id": "ie-link-2",
+        "title": "Codeforces 4A: Watermelon",
+        "description": "Check if integer w can be split into two positive even integers.",
+        "url": "https://codeforces.com/problemset/problem/4/A"
+      },
+      {
+        "id": "ie-link-3",
+        "title": "AtCoder ABC080_A: Parking",
+        "description": "Calculate minimum cost between hourly rate A*T and flat rate B.",
+        "url": "https://atcoder.jp/contests/abc080/tasks/abc080_a"
+      },
+      {
+        "id": "ie-link-4",
+        "title": "CodeChef FLOW017: Second Largest",
+        "description": "Find the second largest integer among three distinct integers.",
+        "url": "https://www.codechef.com/problems/FLOW017"
+      }
+    ]
+  },
+  {
+    "step": "1.3",
+    "id": "step-1-3",
+    "title": "1.3 Loops",
+    "suggestedTimeMins": 20,
+    "questionRule": "Pick any 2 from pool",
+    "hintRule": "If needed, 1 or 2 hints",
+    "mandatory": true,
+    "passCriteria": "Correct loop bounds, termination condition, and step update",
+    "expectation": "Candidate should write correct loop logic with proper explanation. If unable, revisit '1.3 Loops' and stop interaction.",
+    "questions": [
+      {
+        "id": "loop-1",
+        "title": "1. Print 1 to N or N to 1",
+        "description": "Print numbers from 1 to N ascending, or N down to 1 descending."
+      },
+      {
+        "id": "loop-2",
+        "title": "2. Print 10 Table",
+        "description": "Print the multiplication table of a given number up to 10."
+      },
+      {
+        "id": "loop-3",
+        "title": "3. First K Even / Odd Numbers",
+        "description": "Print first K even or odd numbers with operations as K or 2*K."
+      },
+      {
+        "id": "loop-4",
+        "title": "4. Check if Number is Prime",
+        "description": "Given integer N, determine if it is a prime number (check divisors up to sqrt(N))."
+      },
+      {
+        "id": "loop-5",
+        "title": "5. Print Divisors of N",
+        "description": "Print all positive divisors of an integer N in increasing order."
+      },
+      {
+        "id": "loop-6",
+        "title": "6. Product from 1 to 20",
+        "description": "Compute the product of all integers from 1 to 20 (handling 64-bit integer overflow)."
+      },
+      {
+        "id": "loop-7",
+        "title": "7. 0 to N Even Numbers without If-Else",
+        "description": "Print all even numbers from 0 to N by stepping loop counter by 2, without any if-else statement."
+      }
+    ]
+  },
+  {
+    "step": "2.0",
+    "id": "step-2-0",
+    "title": "2.0 Traversal & Arrays",
+    "suggestedTimeMins": 15,
+    "questionRule": "Pick any 2 loop questions + pick 1 array traversal problem",
+    "hintRule": "NO hints are given",
+    "mandatory": true,
+    "passCriteria": "Write clean iteration and boundary checks without any hints",
+    "expectation": "Candidate should write correct code with proper explanation. Revisit 'Traversal' if unable to solve.",
+    "questions": [
+      {
+        "id": "trav-1",
+        "title": "Largest Element in Array",
+        "description": "Find the maximum element in an array of size N.",
+        "url": "https://learning.ccbp.in/question/5fe9e4d2-b33f-498c-a769-faa9a9ca4475"
+      },
+      {
+        "id": "trav-2",
+        "title": "Smallest Element in Array",
+        "description": "Find the minimum element in an array of size N.",
+        "url": "https://learning.ccbp.in/question/cd5045a3-3c6d-464b-84aa-b2a971ead929"
+      },
+      {
+        "id": "trav-3",
+        "title": "Search Element in Array (Linear Search)",
+        "description": "Check whether element X exists in an array and return its index.",
+        "url": "https://www.codechef.com/practice/course/arrays/ARRAYS/problems/SEARCHINARR"
+      },
+      {
+        "id": "trav-4",
+        "title": "Numbers with Even Number of Digits",
+        "description": "Given array of integers, return how many contain an even number of digits.",
+        "url": "https://leetcode.com/problems/find-numbers-with-even-number-of-digits/"
+      }
+    ]
+  },
+  {
+    "step": "3.0",
+    "id": "step-3-0",
+    "title": "3.0 Time & Space Complexity",
+    "suggestedTimeMins": 15,
+    "questionRule": "Pick 1 basic + 1 advanced problem",
+    "hintRule": "NO hints given (can encourage student). Explain manually using pen & paper.",
+    "mandatory": true,
+    "passCriteria": "Manual derivation using pen & paper",
+    "expectation": "Student should manually explain using pen & paper. In case of failure, suggest revisiting Time & Space Complexity on LaunchPad.",
+    "questions": [
+      {
+        "id": "tc-1",
+        "title": "Q1: Single Loop Sum",
+        "description": "sum=0; for i=1 to n: sum += i;\nOps for n=10? TC: O(n), SC: O(1)",
+        "answer": "10 ops, TC: O(n), SC: O(1)"
+      },
+      {
+        "id": "tc-2",
+        "title": "Q2: Nested Loops n x n",
+        "description": "for i=1 to n: for j=1 to n: print i, j;\nOps for n=5? TC: O(n^2), SC: O(1)",
+        "answer": "25 prints, TC: O(n^2), SC: O(1)"
+      },
+      {
+        "id": "tc-3",
+        "title": "Q3: First and Last Element",
+        "description": "a = arr[0]; b = arr[n-1]; print a+b;\nOps for n=1000? TC: O(1), SC: O(1)",
+        "answer": "3 statements, TC: O(1), SC: O(1)"
+      },
+      {
+        "id": "tc-4",
+        "title": "Q4: Repeated Doubling Loop",
+        "description": "i=1; while i < n: print i; i = i * 2;\nOps for n=16? TC: O(log n), SC: O(1)",
+        "answer": "4 prints, TC: O(log n), SC: O(1)"
+      },
+      {
+        "id": "tc-5",
+        "title": "Q5: Dynamic Result Array",
+        "description": "create array result of size n; for i=0 to n-1: result[i] = i*i;\nTC: O(n), SC: O(n)",
+        "answer": "8 assignments, TC: O(n), SC: O(n)"
+      },
+      {
+        "id": "tc-6",
+        "title": "Q6: Triangular Star Loop",
+        "description": "for i=1 to n: for j=1 to i: print '*';\nOps for n=5? 1+2+3+4+5 = 15 = n(n+1)/2. TC: O(n^2), SC: O(1)",
+        "answer": "15 stars, TC: O(n^2), SC: O(1)"
+      },
+      {
+        "id": "tc-7",
+        "title": "Q7: Consecutive Single & Nested Loops",
+        "description": "for i=1 to n: print i; then for i=1 to n: for j=1 to n: print i*j;\nTotal prints for n=4? 4 + 16 = 20. TC: O(n^2), SC: O(1)",
+        "answer": "20 prints, TC: O(n^2), SC: O(1)"
+      },
+      {
+        "id": "tc-8",
+        "title": "Q8: Outer Linear, Inner Logarithmic",
+        "description": "for i=1 to n: j=1; while j < n: print i, j; j = j * 2;\nOps for n=8? 8 * 3 = 24. TC: O(n log n), SC: O(1)",
+        "answer": "24 prints, TC: O(n log n), SC: O(1)"
+      },
+      {
+        "id": "tc-9",
+        "title": "Q9: Linear Recursion Stack",
+        "description": "function f(n): if n==0: return 0; return n + f(n-1);\nCalls for n=5? 6 calls. TC: O(n), SC: O(n)",
+        "answer": "6 calls, TC: O(n), SC: O(n)"
+      },
+      {
+        "id": "tc-10",
+        "title": "Q10: Outer Halving, Inner Linear Shrinking",
+        "description": "i=n; while i >= 1: for j=1 to i: print j; i = i/2;\nOps for n=8? 8+4+2+1 = 15 = 2n-1. TC: O(n), SC: O(1)",
+        "answer": "15 prints, TC: O(n), SC: O(1)"
+      },
+      {
+        "id": "tc-adv-1",
+        "title": "Adv Q1: Outer Doubling, Inner Linear to i",
+        "description": "for(i=1; i<=n; i*=2) for(j=1; j<=i; j++) count++; Value for n=16? TC: O(n), SC: O(1)",
+        "answer": "count=31 (2n-1), TC: O(n), SC: O(1)"
+      },
+      {
+        "id": "tc-adv-2",
+        "title": "Adv Q2: Harmonic Series Loop",
+        "description": "for(i=1; i<=n; i++) for(j=1; j<=n; j+=i) print(j);\nPrints for n=4? 4+2+2+1 = 9. Total = n * Hn. TC: O(n log n)",
+        "answer": "9 prints, TC: O(n log n)"
+      },
+      {
+        "id": "tc-adv-3",
+        "title": "Adv Q3: Divide & Conquer Recurrence",
+        "description": "f(n): 2*f(n/2) + linear work print. T(n) = 2T(n/2) + n.\nTC: O(n log n), SC: O(log n)",
+        "answer": "TC: O(n log n), SC: O(log n)"
+      },
+      {
+        "id": "tc-adv-4",
+        "title": "Adv Q4: Repeated Square Root",
+        "description": "i=n; while(i>2): i = sqrt(i); print(i);\nIterations for n=256? 256->16->4->2 (3 iterations). TC: O(log log n)",
+        "answer": "3 iterations, TC: O(log log n)"
+      },
+      {
+        "id": "tc-adv-5",
+        "title": "Adv Q5: Recursion creating Array at each level",
+        "description": "h(n): create array of size n, h(n-1). Cells for n=4? 4+3+2+1 = 10.\nTC: O(n^2), SC: O(n^2) simultaneously on stack",
+        "answer": "10 cells, TC: O(n^2), SC: O(n^2)"
+      }
+    ]
+  },
+  {
+    "step": "4.0",
+    "id": "step-4-0",
+    "title": "4.0 Pattern Questions",
+    "suggestedTimeMins": 20,
+    "questionRule": "Pick any 2 from CCBP pattern pool",
+    "hintRule": "At most 1 or 2 hints based on student's logic",
+    "mandatory": true,
+    "passCriteria": "Explain logic on pen & paper and solve with at most 1-2 hints",
+    "expectation": "Candidate should explain logic on pen & paper and solve. If unable, revisit 'Pattern Questions' and stop interaction.",
+    "questions": [
+      {
+        "id": "pat-1",
+        "title": "Square Star Pattern",
+        "url": "https://learning.ccbp.in/question/8de97549-78ae-48c8-aba3-ba84c7471a88"
+      },
+      {
+        "id": "pat-2",
+        "title": "Right Triangle with Column Numbers",
+        "url": "https://learning.ccbp.in/question/b241d749-c7dd-4ae9-9ebc-5e5674048dc9"
+      },
+      {
+        "id": "pat-3",
+        "title": "Inverted Right Angled Number Pattern",
+        "url": "https://learning.ccbp.in/question/12b1e904-7213-44a0-a475-af791b4794a2"
+      },
+      {
+        "id": "pat-4",
+        "title": "Inverted Centered Right Triangle",
+        "url": "https://learning.ccbp.in/question/39bac20d-b169-41dd-89a5-96c5ef1d22bf"
+      },
+      {
+        "id": "pat-5",
+        "title": "Alternating Binary Triangle Pattern",
+        "url": "https://learning.ccbp.in/question/eb4001f2-b8c6-4af9-beb6-b85a5869db77"
+      },
+      {
+        "id": "pat-6",
+        "title": "Combined Triangle Pattern With Gap",
+        "url": "https://learning.ccbp.in/question/7f3c9f77-90d2-4a86-b7a8-6699ebbb6f06"
+      },
+      {
+        "id": "pat-7",
+        "title": "Ascending Upper Case Letter Triangle",
+        "url": "https://learning.ccbp.in/question/6cc87875-d976-4b81-a11e-287c7843e84d"
+      },
+      {
+        "id": "pat-8",
+        "title": "Hour Glass Pattern",
+        "url": "https://learning.ccbp.in/question/7f2e308e-7250-4ab4-97c0-044fd859d98c"
+      },
+      {
+        "id": "pat-9",
+        "title": "Concentric Square Pattern",
+        "url": "https://learning.ccbp.in/question/95f75d58-cb05-48a4-811a-3d38545f6174"
+      }
+    ]
+  }
+]
