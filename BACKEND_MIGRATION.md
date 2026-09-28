@@ -324,7 +324,7 @@ Because the data lives separately in each browser (§1), there is no single curr
 
 9. **Database-backed login and permissions** (replaces the localStorage login; §6.2 is resolved).
    - **No registration.** Accounts come only from `db/users.local.csv` (git-ignored; template `db/users.example.csv`), loaded with `npm run db:users`. That file is the **complete list** of people who can sign in: accounts not in it are deleted, and every run signs everyone out. Instructor rows must use a directory email (the name comes from the directory); admin rows need `role=admin` and a name. At least one admin is required.
-   - Passwords are hashed with scrypt and a per-user salt. Sessions are random tokens in an **httpOnly** cookie `kkh_session` (7 days). Only a SHA-256 hash of the token is stored, in the `sessions` table.
+   - Passwords are hashed with scrypt and a per-user salt. Sessions are random tokens in an **httpOnly** cookie `kkh_session` (12 hours, fixed; not extended by activity). Only a SHA-256 hash of the token is stored, in the `sessions` table.
    - Routes: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. The error for a wrong password and an unknown email is the same.
    - **Permissions, enforced on the server:**
      | | Admin | Instructor |
