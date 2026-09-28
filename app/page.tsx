@@ -11,7 +11,6 @@ import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable"
 import { localDateOf, todayLocal } from "@/lib/dates";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
 import { InstructorLoginModal } from "@/components/InstructorLoginModal";
-import { InteractionRoom } from "@/components/InteractionRoom";
 import { PostInteractionModal } from "@/components/PostInteractionModal";
 import { StudentHistoryModal } from "@/components/StudentHistoryModal";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";

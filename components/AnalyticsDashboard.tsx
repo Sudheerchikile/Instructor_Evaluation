@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Student, InteractionLog, InstructorSummary } from '@/lib/types';
-import { instructorNamesMatch, matchInstructor } from '@/lib/storage';
+import { instructorNamesMatch } from '@/lib/storage';
 import { ALL_TOPICS, LEVELS } from '@/lib/multiLevelCurriculum';
 import { todayLocal } from '@/lib/dates';
 import { DailyCollegeOverview } from '@/components/DailyCollegeOverview';
@@ -111,8 +111,8 @@ export function AnalyticsDashboard({
   const instructorAnalytics = useMemo(() => {
     return instructorSummaries.map((inst) => {
       const instLogs = interactions.filter((log) => {
-        const takenBy = matchInstructor(log.instructorName, log.instructorEmail).instructor;
-        if (takenBy && inst.email) return takenBy.email === inst.email;
+        // "Taken by" is resolved to an instructor id on the server when the log is saved.
+        if (log.takenByInstructorId && inst.id) return log.takenByInstructorId === inst.id;
         return instructorNamesMatch(log.instructorName || '', inst.name || '');
       });
       const today = instLogs.filter((log) => log.date === todayIso).length;

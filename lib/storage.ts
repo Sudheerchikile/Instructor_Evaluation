@@ -1,21 +1,13 @@
 import { Student, InteractionLog, InstructorSummary } from './types';
-import { findDirectoryInstructor, normalizeInstructorName } from './instructorDirectory';
+import { normalizeInstructorName } from './instructorDirectory';
 
-export { INSTRUCTOR_DIRECTORY, findDirectoryInstructor, matchInstructor, normalizeInstructorName } from './instructorDirectory';
-export type { DirectoryInstructor, InstructorMatch } from './instructorDirectory';
+export { normalizeInstructorName } from './instructorDirectory';
 
 // Students, interactions, accounts and sessions all live in PostgreSQL (see db/ and app/api/).
 
 // Exact match after normalization. Substring matching was removed because "Gaurav" matched both Gaurav cohorts.
 export function instructorNamesMatch(left: string, right: string): boolean {
   return normalizeInstructorName(left) === normalizeInstructorName(right);
-}
-
-// Full name for the Instructor List.
-export function canonicalInstructorName(value: string): string {
-  const raw = (value || '').trim();
-  if (!raw) return '';
-  return findDirectoryInstructor(raw)?.name ?? raw;
 }
 
 // Email comparison first; exact-name fallback only for students without a matched instructor.
@@ -63,13 +55,13 @@ export function statusAfterInteraction(log: Pick<InteractionLog, 'statusPostInte
 }
 
 export function getInstructorSummaries(students: Student[]): InstructorSummary[] {
-  const map = new Map<string, { name: string; email: string; assigned: number; completed: number; revisit: number; cleared: number; halls: Set<string>; levels: Set<string>; }>();
+  const map = new Map<string, { id?: string; name: string; email: string; assigned: number; completed: number; revisit: number; cleared: number; halls: Set<string>; levels: Set<string>; }>();
   // Grouped by instructor email so the two "Gaurav" instructors stay separate; keyed by full name for display.
   for (const s of students) {
     const inst = s.instructorFullName || s.instructor || 'Unassigned';
     const key = s.instructorEmail || `unmatched:${inst}`;
     if (!map.has(key)) {
-      map.set(key, { name: inst, email: s.instructorEmail ?? '', assigned: 0, completed: 0, revisit: 0, cleared: 0, halls: new Set(), levels: new Set() });
+      map.set(key, { id: s.instructorId, name: inst, email: s.instructorEmail ?? '', assigned: 0, completed: 0, revisit: 0, cleared: 0, halls: new Set(), levels: new Set() });
     }
     const entry = map.get(key)!;
     entry.assigned++;
@@ -81,7 +73,7 @@ export function getInstructorSummaries(students: Student[]): InstructorSummary[]
       else if (s.status.includes('Cleared')) entry.cleared++;
     }
   }
-  return Array.from(map.values()).map((d) => ({ name: d.name, email: d.email, assignedCount: d.assigned, completedCount: d.completed, revisitCount: d.revisit, clearedCount: d.cleared, primaryHall: Array.from(d.halls).join(', ') || 'N/A', levels: Array.from(d.levels) })).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(map.values()).map((d) => ({ id: d.id, name: d.name, email: d.email, assignedCount: d.assigned, completedCount: d.completed, revisitCount: d.revisit, clearedCount: d.cleared, primaryHall: Array.from(d.halls).join(', ') || 'N/A', levels: Array.from(d.levels) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function exportInteractionsToCSV(interactions: InteractionLog[]): void {

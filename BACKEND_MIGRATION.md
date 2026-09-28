@@ -370,6 +370,13 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Removed the per-student name list inside the CDU and BITS College-wise panels. Their four totals (Total Interactions, Today, Cleared, Revisit) remain.
     - Analytics' "today" now uses the local date (`todayLocal`) instead of the UTC date.
 
+18. **The deployed app needs no data files.**
+    - `lib/instructorDirectory.ts` is now pure: `matchInstructor(directory, name, email)` takes the list as an argument. The server loads it from the `instructors` table (`loadDirectory` in `db/queries.ts`).
+    - Interactions expose `takenByInstructorId`, and Analytics matches instructors by that id instead of by name.
+    - `db/seed.ts` reads `lib/data/instructors.json` and `lib/data/students.json` with `readFileSync` at run time, so they are needed only on the machine that runs the one-time import.
+    - Verified: `tsc` and `next build` both pass with those two files removed.
+    - Deployment needs only `DATABASE_URL`, plus a database that already has the tables and data (`npm run db:setup` and `npm run db:users`, run once from a machine that has the files).
+
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
 - Instructors can still read the full Directory, Analytics and Logs (the earlier rule). Hide these if instructors should see only their own students.

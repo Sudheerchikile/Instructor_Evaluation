@@ -1,5 +1,6 @@
-import rawStudents from '../lib/data/students.json';
-import { INSTRUCTOR_DIRECTORY, matchInstructor } from '../lib/instructorDirectory';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { PENDING_STATUS, normalizeRecursionTopic, normalizeStepValue, normalizeTopicValue } from '../lib/storage';
 import { Student } from '../lib/types';
 import { coerceStep, getDefaultTopicForLevel, getTopicOptions } from '../lib/multiLevelCurriculum';
@@ -15,14 +16,29 @@ import { getPool, loadEnvForScripts } from './client';
 
 const dryRun = process.argv.includes('--dry-run');
 
+// Source files are read at run time (not imported) so the deployed app builds without them.
+// They hold personal data and are only needed on the machine that runs this one-time import.
+function readJson<T>(relativePath: string): T {
+  const file = join(process.cwd(), relativePath);
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as T;
+  } catch {
+    console.error(`Missing or invalid ${relativePath}. It is not in Git; get it from the project owner.`);
+    process.exit(1);
+  }
+}
+
+const INSTRUCTOR_DIRECTORY = readJson<DirectoryInstructor[]>('lib/data/instructors.json');
+const rawStudents = readJson<Student[]>('lib/data/students.json');
+
 function levelNumber(level: string | undefined): number {
   const match = /^Level\s+(\d+)$/.exec((level || '').trim());
   const n = match ? Number(match[1]) : 0;
   return n >= 0 && n <= 7 ? n : 0;
 }
 
-const students = (rawStudents as Student[]).map((s) => {
-  const match = matchInstructor(s.instructor, s.instructorEmail);
+const students = rawStudents.map((s) => {
+  const match = matchInstructor(INSTRUCTOR_DIRECTORY, s.instructor, s.instructorEmail);
   const level = levelNumber(s.level);
   const levelLabel = `Level ${level}`;
   // Sheet values not valid for the level (e.g. Level 0 rows with topic "Introduction") fall back to the level's default topic.

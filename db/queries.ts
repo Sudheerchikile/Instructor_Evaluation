@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { getPool } from './client';
 import { InstructorListEntry, InstructorMatchStatus, InstructorUser, InteractionLog, Student, StudentListEntry } from '../lib/types';
-import { matchInstructor } from '../lib/instructorDirectory';
+import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, getDefaultTopicForLevel, getStepOptionsForTopic, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { statusAfterInteraction } from '../lib/storage';
 
@@ -27,6 +27,7 @@ const INTERACTION_JSON = `
     'studentName', it.student_name,
     'instructorName', it.instructor_name,
     'instructorEmail', it.instructor_email,
+    'takenByInstructorId', it.taken_by_instructor_id,
     'assignedInstructorName', it.assigned_instructor_name,
     'level', CASE WHEN it.level IS NULL THEN NULL ELSE 'Level ' || it.level END,
     'currentStep', it.current_step,
@@ -137,14 +138,22 @@ export async function getInteractions(): Promise<InteractionLog[]> {
   return rows.map((row) => row.log);
 }
 
-// Inserts one interaction row. Shared by addInteraction and the seed script.
+// Instructor directory as stored in the DB (the source of truth at run time).
+async function loadDirectory(client: PoolClient): Promise<DirectoryInstructor[]> {
+  const { rows } = await client.query<{ id: string; first_name: string; full_name: string; email: string; aliases: string[] }>(
+    'SELECT id, first_name, full_name, email, aliases FROM instructors'
+  );
+  return rows.map((r) => ({ id: r.id, firstName: r.first_name, name: r.full_name, email: r.email, aliases: r.aliases }));
+}
+
+// Inserts one interaction row.
 export async function insertInteraction(
   client: PoolClient,
   log: InteractionLog,
   student: { instructorId?: string | null; level?: string; currentStep?: string },
   options: { skipExisting?: boolean; createdBy?: string } = {}
 ): Promise<boolean> {
-  const takenBy = matchInstructor(log.instructorName, log.instructorEmail).instructor;
+  const takenBy = matchInstructor(await loadDirectory(client), log.instructorName, log.instructorEmail).instructor;
   const snapshotLevel = log.level ?? student.level;
   const result = await client.query(
     `INSERT INTO interactions (id, student_id, student_name, instructor_name, instructor_email, taken_by_instructor_id,

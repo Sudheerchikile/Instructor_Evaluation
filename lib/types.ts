@@ -29,6 +29,7 @@ export interface InteractionLog {
   instructorName: string;
   assignedInstructorName?: string;
   instructorEmail?: string;
+  takenByInstructorId?: string | null; // directory id of "interaction taken by", resolved on the server
   topics: string;
   statusPostInteraction: 'Need to Revisit' | 'Cleared' | 'In Progress' | string;
   rating: number;
@@ -101,6 +102,7 @@ export interface InstructorUser {
 }
 
 export interface InstructorSummary {
+  id?: string; // directory id (absent for unmatched names)
   name: string;
   email?: string;
   assignedCount: number;
