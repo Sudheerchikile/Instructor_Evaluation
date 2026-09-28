@@ -62,6 +62,13 @@ export type StudentListEntry = Omit<Student, 'instructor' | 'instructorEmail' | 
   feedback: InteractionLog[]; // latest first; [] when the student has no interactions
 };
 
+// Entry in the "Interaction Taken By" dropdown.
+export interface InstructorOption {
+  id: string;
+  name: string;      // full name
+  firstName: string; // name shown in the Student List, e.g. "Gaurav-26"
+}
+
 // API shape: Instructor List entry, using the instructor's full name.
 export interface InstructorListEntry {
   id: string;

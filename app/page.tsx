@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Student, InteractionLog, InstructorUser } from "@/lib/types";
+import { Student, InteractionLog, InstructorUser, InstructorOption } from "@/lib/types";
 import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
 import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
-import { ApiError, createInteraction, fetchCurrentUser, fetchInteractions, fetchStudents, signOut, updateStudentProgress } from "@/lib/api";
+import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
 import { localDateOf, todayLocal } from "@/lib/dates";
@@ -57,17 +57,19 @@ export default function Home() {
   // Students and interactions come from PostgreSQL via /api; every change is saved there.
   const [students, setStudents] = useState<Student[]>([]);
   const [interactions, setInteractions] = useState<InteractionLog[]>([]);
+  const [instructorOptions, setInstructorOptions] = useState<InstructorOption[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authChecked) return;
     let cancelled = false;
-    Promise.all([fetchStudents(), fetchInteractions()])
-      .then(([loadedStudents, loadedInteractions]) => {
+    Promise.all([fetchStudents(), fetchInteractions(), fetchInstructorOptions()])
+      .then(([loadedStudents, loadedInteractions, loadedInstructors]) => {
         if (cancelled) return;
         setStudents(loadedStudents);
         setInteractions(loadedInteractions);
+        setInstructorOptions(loadedInstructors);
         setDataLoaded(true);
       })
       .catch((err: Error) => {
@@ -201,7 +203,7 @@ export default function Home() {
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       {postInteractionStudent && (
-        <PostInteractionModal key={postInteractionStudent.id} isOpen onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructor={currentInstructor} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
+        <PostInteractionModal key={postInteractionStudent.id} isOpen onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
       )}
       <StudentHistoryModal
         isOpen={!!historyStudent}

@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { getPool } from './client';
-import { InstructorListEntry, InstructorMatchStatus, InstructorUser, InteractionLog, Student, StudentListEntry } from '../lib/types';
+import { InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, getDefaultTopicForLevel, getStepOptionsForTopic, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { statusAfterInteraction } from '../lib/storage';
@@ -153,7 +153,10 @@ export async function insertInteraction(
   student: { instructorId?: string | null; level?: string; currentStep?: string },
   options: { skipExisting?: boolean; createdBy?: string } = {}
 ): Promise<boolean> {
-  const takenBy = matchInstructor(await loadDirectory(client), log.instructorName, log.instructorEmail).instructor;
+  const directory = await loadDirectory(client);
+  // Picked from the instructor dropdown (id); name/email matching is the fallback for older clients.
+  const takenBy = directory.find((i) => i.id === log.takenByInstructorId)
+    ?? matchInstructor(directory, log.instructorName, log.instructorEmail).instructor;
   const snapshotLevel = log.level ?? student.level;
   const result = await client.query(
     `INSERT INTO interactions (id, student_id, student_name, instructor_name, instructor_email, taken_by_instructor_id,
@@ -256,6 +259,14 @@ interface InstructorRow {
 }
 
 // Instructor List: full names, each with their assigned students.
+// Names and ids only, for the "Interaction Taken By" dropdown (any signed-in user).
+export async function getInstructorOptions(): Promise<InstructorOption[]> {
+  const { rows } = await getPool().query<{ id: string; first_name: string; full_name: string }>(
+    'SELECT id, first_name, full_name FROM instructors ORDER BY full_name'
+  );
+  return rows.map((r) => ({ id: r.id, name: r.full_name, firstName: r.first_name }));
+}
+
 export async function getInstructorList(): Promise<InstructorListEntry[]> {
   const { rows } = await getPool().query<InstructorRow>(
     `SELECT i.id, i.first_name, i.full_name, i.email,

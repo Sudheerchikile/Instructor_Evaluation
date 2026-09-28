@@ -1,4 +1,4 @@
-import { InstructorListEntry, InstructorUser, InteractionLog, Student } from './types';
+import { InstructorListEntry, InstructorOption, InstructorUser, InteractionLog, Student } from './types';
 
 // Browser-side calls to the app/api routes (PostgreSQL-backed).
 
@@ -27,6 +27,8 @@ export const signOut = () => request<{ ok: true }>('/api/auth/logout', { method:
 export const fetchCurrentUser = () => request<InstructorUser>('/api/auth/me');
 
 export const fetchInstructors = () => request<InstructorListEntry[]>('/api/instructors');
+
+export const fetchInstructorOptions = () => request<InstructorOption[]>('/api/instructors/options');
 
 export const fetchStudents = () => request<Student[]>('/api/students');
 

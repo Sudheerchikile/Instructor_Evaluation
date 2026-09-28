@@ -377,6 +377,13 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Verified: `tsc` and `next build` both pass with those two files removed.
     - Deployment needs only `DATABASE_URL`, plus a database that already has the tables and data (`npm run db:setup` and `npm run db:users`, run once from a machine that has the files).
 
+19. **"Interaction Taken By" is a searchable instructor dropdown.**
+    - `components/InstructorPicker.tsx` offers search, ↑/↓, Enter and Esc. It defaults to the signed-in instructor, and only listed instructors can be chosen, with no free text.
+    - The choice is saved as `takenByInstructorId`. The server checks the id against the `instructors` table and falls back to name/email matching only for older clients.
+    - The list comes from the new `GET /api/instructors/options` (id, full name, first name; any signed-in user). `GET /api/instructors` stays admin-only because it includes students.
+    - The save button now reads "Save Interaction".
+    - Tested: a Gaurav-26 login recording a session taken by Gaurav-25 was stored as INS010. The test row was deleted.
+
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
 - Instructors can still read the full Directory, Analytics and Logs (the earlier rule). Hide these if instructors should see only their own students.

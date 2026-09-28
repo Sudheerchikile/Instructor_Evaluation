@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Student, InteractionLog } from '@/lib/types';
+import { Student, InteractionLog, InstructorOption } from '@/lib/types';
 import { todayLocal } from '@/lib/dates';
 import { X, Save } from 'lucide-react';
+import { InstructorPicker } from '@/components/InstructorPicker';
 
 interface PostInteractionModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: Student | null;
-  currentInstructor: string;
+  currentInstructorId?: string | null;
+  instructorOptions: InstructorOption[];
   initialDraft?: {
     round: number;
     selectedTopics: string;
@@ -24,7 +26,8 @@ export function PostInteractionModal({
   isOpen,
   onClose,
   student,
-  currentInstructor,
+  currentInstructorId,
+  instructorOptions,
   initialDraft,
   onSave
 }: PostInteractionModalProps) {
@@ -32,7 +35,9 @@ export function PostInteractionModal({
   const [interactionDate, setInteractionDate] = useState(todayLocal);
   const studentName = student?.name ?? '';
   const assignedInstructorName = student?.instructorFullName || student?.instructor || '';
-  const [interactionTakenBy, setInteractionTakenBy] = useState('');
+  // Defaults to the signed-in instructor; may be changed to the colleague who took the session.
+  const [takenById, setTakenById] = useState<string | null>(currentInstructorId ?? null);
+  const [takenByError, setTakenByError] = useState(false);
   const [topics, setTopics] = useState('');
   const [statusPostInteraction, setStatusPostInteraction] = useState<'Need to Revisit' | 'Cleared' | 'In Progress'>('Need to Revisit');
   const [rating, setRating] = useState<number>(0);
@@ -50,12 +55,18 @@ export function PostInteractionModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const takenBy = instructorOptions.find((o) => o.id === takenById);
+    if (!takenBy) {
+      setTakenByError(true);
+      return;
+    }
 
     const log: InteractionLog = {
       id: `int-${Date.now()}`,
       studentId: student.id,
       studentName,
-      instructorName: interactionTakenBy || currentInstructor,
+      instructorName: takenBy.name,
+      takenByInstructorId: takenBy.id,
       assignedInstructorName,
       topics,
       statusPostInteraction,
@@ -150,13 +161,13 @@ export function PostInteractionModal({
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 Interaction Taken By <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                required
-                value={interactionTakenBy}
-                onChange={(e) => setInteractionTakenBy(e.target.value)}
-                className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+              <InstructorPicker
+                options={instructorOptions}
+                value={takenById}
+                loading={instructorOptions.length === 0}
+                onChange={(id) => { setTakenById(id); setTakenByError(false); }}
               />
+              {takenByError && <p className="mt-1 text-[11px] text-rose-500">Select who took this interaction.</p>}
             </div>
           </div>
 
@@ -352,7 +363,7 @@ export function PostInteractionModal({
               className="inline-flex items-center gap-1.5 h-8 px-4 rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white font-medium cursor-pointer shadow-xs"
             >
               <Save className="h-3.5 w-3.5" />
-              <span>Save Evaluation Log (Sheet 2)</span>
+              <span>Save Interaction</span>
             </button>
           </div>
         </form>
