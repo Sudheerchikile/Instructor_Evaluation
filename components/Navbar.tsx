@@ -9,7 +9,6 @@ export type AppTab = "my-students" | "all-students" | "instructors" | "analytics
 interface NavbarProps {
   currentInstructor: string;
   currentUser: InstructorUser;
-  onOpenInstructorModal: () => void;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   onExportCSV: () => void;
@@ -22,7 +21,7 @@ interface NavbarProps {
   isAdmin?: boolean;
 }
 
-export function Navbar({ currentInstructor, currentUser, onOpenInstructorModal, activeTab, setActiveTab, onExportCSV, onLogout, interactionCount, totalStudents, assignedCount, theme = "dark", onToggleTheme = () => {}, isAdmin = false }: NavbarProps) {
+export function Navbar({ currentInstructor, currentUser, activeTab, setActiveTab, onExportCSV, onLogout, interactionCount, totalStudents, assignedCount, theme = "dark", onToggleTheme = () => {}, isAdmin = false }: NavbarProps) {
   const initials = currentUser.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   const tabCls = (t: string) => `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${activeTab === t ? "bg-white text-zinc-900 shadow-2xs dark:bg-zinc-800 dark:text-zinc-100" : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"}`;
   return (

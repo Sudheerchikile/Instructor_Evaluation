@@ -10,7 +10,6 @@ import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
 import { localDateOf, todayLocal } from "@/lib/dates";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
-import { InstructorLoginModal } from "@/components/InstructorLoginModal";
 import { PostInteractionModal } from "@/components/PostInteractionModal";
 import { StudentHistoryModal } from "@/components/StudentHistoryModal";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
@@ -78,7 +77,6 @@ export default function Home() {
       });
     return () => { cancelled = true; };
   }, [authChecked, router]);
-  const [isInstructorModalOpen, setIsInstructorModalOpen] = useState(false);
   const [postInteractionStudent, setPostInteractionStudent] = useState<Student | null>(null);
   const [postInteractionDraft, setPostInteractionDraft] = useState<{ round: number; selectedTopics: string; questionsAskedList: string[]; notes: string; } | null>(null);
   const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
@@ -155,7 +153,6 @@ export default function Home() {
       <Navbar
         currentInstructor={currentInstructor}
         currentUser={currentUser}
-        onOpenInstructorModal={() => setIsInstructorModalOpen(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onExportCSV={handleExportCSV}
@@ -203,7 +200,6 @@ export default function Home() {
         {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} />}
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
-      <InstructorLoginModal isOpen={isInstructorModalOpen} onClose={() => setIsInstructorModalOpen(false)} currentInstructor={currentInstructor} onSelectInstructor={() => setIsInstructorModalOpen(false)} instructorSummaries={instructorSummaries} />
       {postInteractionStudent && (
         <PostInteractionModal key={postInteractionStudent.id} isOpen onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructor={currentInstructor} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
       )}
