@@ -1,5 +1,254 @@
 import { ParsedTranscriptResult } from './types';
 
+function normalizeRowText(value: string): string {
+  return value
+    .replace(/\r/g, '\n')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\t+/g, ' ')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .trim();
+}
+
+function normalizeDateValue(value: string): string {
+  const raw = (value || '').trim();
+  if (!raw) return '';
+
+  const isoLike = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoLike) return `${isoLike[1]}-${String(isoLike[2]).padStart(2, '0')}-${String(isoLike[3]).padStart(2, '0')}`;
+
+  const slashLike = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (slashLike) {
+    const year = slashLike[3].length === 2 ? `20${slashLike[3]}` : slashLike[3];
+    return `${year}-${String(slashLike[2]).padStart(2, '0')}-${String(slashLike[1]).padStart(2, '0')}`;
+  }
+
+  const monthLike = raw.match(/^(\d{1,2})[-/]([A-Za-z]{3,9})[-/](\d{2,4})$/);
+  if (monthLike) {
+    const monthMap: Record<string, string> = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+    };
+    const month = monthMap[monthLike[2].slice(0, 3).charAt(0).toUpperCase() + monthLike[2].slice(1, 3).toLowerCase()] || '01';
+    const year = monthLike[3].length === 2 ? `20${monthLike[3]}` : monthLike[3];
+    return `${year}-${month}-${String(monthLike[1]).padStart(2, '0')}`;
+  }
+
+  const monthName = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*)?(\d{2,4})?$/i);
+  if (monthName) {
+    const monthMap: Record<string, string> = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+    };
+    const month = monthMap[monthName[1].slice(0, 3).charAt(0).toUpperCase() + monthName[1].slice(1, 3).toLowerCase()] || '01';
+    const day = monthName[2];
+    const year = monthName[3] || new Date().getFullYear().toString();
+    return `${year}-${month}-${String(day).padStart(2, '0')}`;
+  }
+
+  return raw;
+}
+
+function splitListItems(value: string): string[] {
+  if (!value) return [];
+  const clean = value
+    .replace(/^['"]+|['"]+$/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
+
+  if (!clean) return [];
+
+  const segments = clean.split(/\n\s*(?=\d+\.)/).filter(Boolean);
+  if (segments.length > 1) {
+    return segments
+      .map((segment) => segment.replace(/^\d+\.\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  return clean
+    .split(/(?=\s*(?:\d+\.|\u2022|[-*]\s))/)
+    .map((item) => item.replace(/^\s*(?:\d+\.|\u2022|[-*])\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function parsePlainRowText(text: string): Partial<ParsedTranscriptResult> & {
+  title?: string;
+  instructor?: string;
+  instructorName?: string;
+  topics?: string;
+  status?: 'Need to Revisit' | 'Cleared' | 'In Progress';
+  meetRecording?: string;
+  granolaTranscript?: string;
+} {
+  const result: Partial<ParsedTranscriptResult> & {
+    title?: string;
+    instructor?: string;
+    instructorName?: string;
+    topics?: string;
+    status?: 'Need to Revisit' | 'Cleared' | 'In Progress';
+    meetRecording?: string;
+    granolaTranscript?: string;
+  } = {};
+
+  const quotedBlocks = Array.from(text.matchAll(/"((?:[^"\\]|\\.)*)"/g)).map((match) => match[1].replace(/\\n/g, '\n'));
+
+  const dateMatch = text.match(/\b\d{1,2}[-/][A-Za-z]{3,9}[-/]\d{2,4}\b|\b\d{4}-\d{1,2}-\d{1,2}\b/);
+  if (dateMatch) result.date = normalizeDateValue(dateMatch[0]);
+
+  const instructorMatch = text.match(/\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/);
+  if (instructorMatch) {
+    result.instructor = instructorMatch[0].trim();
+    result.instructorName = instructorMatch[0].trim();
+  }
+
+  const topicMatch = text.match(/\b\d+\.\d+\s+[A-Za-z0-9&/+-][A-Za-z0-9 &/+-]*\b/);
+  if (topicMatch) result.topics = topicMatch[0].trim();
+
+  const statusMatch = text.match(/Need to Revisit|Cleared|In Progress/i);
+  if (statusMatch) {
+    const normalizedStatus = statusMatch[0].trim();
+    result.status = normalizedStatus as 'Need to Revisit' | 'Cleared' | 'In Progress';
+    result.suggestedStatus = normalizedStatus === 'Cleared' ? 'Cleared' : 'Need to Revisit';
+  }
+
+  const ratingMatch = text.match(/\b(0|1|2|3|4|5)\b(?=\s*(?:\"|\d+\.|https?:|$))/i);
+  if (ratingMatch) result.suggestedRating = Number(ratingMatch[1]);
+
+  if (quotedBlocks.length >= 4) {
+    result.questionsAsked = splitListItems(quotedBlocks[0]);
+    result.remarks = splitListItems(quotedBlocks[1]);
+    result.improvementAreas = splitListItems(quotedBlocks[2]);
+    result.actionItems = splitListItems(quotedBlocks[3]);
+  } else {
+    const cells = text
+      .split(/\t+|\s{2,}/)
+      .map((cell) => cell.trim().replace(/^['"]+|['"]+$/g, '').trim())
+      .filter(Boolean);
+
+    if (cells.length >= 5) {
+      const [, , , , , ...rest] = cells;
+      const values = rest.filter((cell) => cell.length > 0);
+      if (values.length >= 1) result.questionsAsked = splitListItems(values[0]);
+      if (values.length >= 2) result.remarks = splitListItems(values[1]);
+      if (values.length >= 3) result.improvementAreas = splitListItems(values[2]);
+      if (values.length >= 4) result.actionItems = splitListItems(values[3]);
+    }
+  }
+
+  const matchUrl = text.match(/https?:\/\/[^\s)]+/i);
+  if (matchUrl) result.meetRecording = matchUrl[0].trim();
+
+  return result;
+}
+
+function extractFieldValue(text: string, label: string): string {
+  const safeLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const labelPattern = new RegExp(`(?:^|\\s|\n|\|)(?:\d+\.?\s*)?${safeLabel}\s*[:\-]?\s*(.*?)(?=(?:\s|\n|\|)(?:\d+\.?\s*)?(?:Date|Instructor(?:'s)?\s*Name|Topics|Status\s+Post\s+Interaction|Rating\s+Based\s+on\s+Interaction|Questions\s+Asked\s+During\s+Interaction|Remarks\s+by\s+Instructor|Performed\s+Well|Improvement\s+Areas|Tweaked\s+Questions\s+Asked|Action\s+Items|Meet\s+Recording|Meeting\s+Title|Transcript|Granola|Date:|Meeting\s+participants)\b|$)`, 'i');
+
+  const match = text.match(labelPattern);
+  return match ? match[1].trim().replace(/\s{2,}/g, ' ') : '';
+}
+
+function parseSheetRow(rawText: string): Partial<ParsedTranscriptResult> & {
+  title?: string;
+  instructor?: string;
+  instructorName?: string;
+  topics?: string;
+  status?: 'Need to Revisit' | 'Cleared' | 'In Progress';
+  meetRecording?: string;
+  granolaTranscript?: string;
+} {
+  const text = normalizeRowText(rawText);
+  const result: Partial<ParsedTranscriptResult> & {
+    title?: string;
+    instructor?: string;
+    instructorName?: string;
+    topics?: string;
+    status?: 'Need to Revisit' | 'Cleared' | 'In Progress';
+    meetRecording?: string;
+    granolaTranscript?: string;
+  } = {};
+
+  const hasSheetHeader = /(?:^|\s)(?:\d+\.|\s)?Date\s*(?:\|\s*|\s+)\s*(?:\d+\.|\s)?Instructor(?:'s)?\s*Name\s*(?:\|\s*|\s+)\s*(?:\d+\.|\s)?Topics/i.test(text)
+    || /Date\s+Instructor(?:'s)?\s+Name\s+Topics/i.test(text)
+    || /Status\s+Post\s+Interaction/i.test(text);
+
+  if (!hasSheetHeader) {
+    const plain = parsePlainRowText(text);
+    if (plain.date || plain.instructor || plain.topics || plain.status || plain.questionsAsked?.length) {
+      return plain;
+    }
+    return result;
+  }
+
+  const dateValue = extractFieldValue(text, 'Date');
+  if (dateValue) result.date = normalizeDateValue(dateValue);
+
+  const instructorValue = extractFieldValue(text, "Instructor's Name") || extractFieldValue(text, 'Instructor Name');
+  if (instructorValue) {
+    result.instructor = instructorValue;
+    result.instructorName = instructorValue;
+  }
+
+  const topicsValue = extractFieldValue(text, 'Topics');
+  if (topicsValue) result.topics = topicsValue;
+
+  const statusValue = extractFieldValue(text, 'Status Post Interaction');
+  if (statusValue) {
+    const normalizedStatus = statusValue.match(/Need to Revisit|Cleared|In Progress/i)?.[0].trim();
+    if (normalizedStatus) {
+      result.status = normalizedStatus as 'Need to Revisit' | 'Cleared' | 'In Progress';
+      result.suggestedStatus = normalizedStatus === 'Cleared' ? 'Cleared' : 'Need to Revisit';
+    }
+  }
+
+  const ratingValue = extractFieldValue(text, 'Rating Based on Interaction');
+  const ratingMatch = ratingValue.match(/(0|1|2|3|4|5)(?:\.0)?/);
+  if (ratingMatch) result.suggestedRating = Number(ratingMatch[1]);
+
+  const questionsValue = extractFieldValue(text, 'Questions Asked During Interaction');
+  if (questionsValue) {
+    result.questionsAsked = splitListItems(questionsValue);
+  }
+
+  const remarksValue = extractFieldValue(text, 'Remarks by Instructor');
+  if (remarksValue) {
+    result.remarks = splitListItems(remarksValue);
+  }
+
+  const performedValue = extractFieldValue(text, 'Performed Well');
+  if (performedValue) {
+    result.performedWell = splitListItems(performedValue);
+  }
+
+  const improvementValue = extractFieldValue(text, 'Improvement Areas');
+  if (improvementValue) {
+    result.improvementAreas = splitListItems(improvementValue);
+  }
+
+  const tweakedValue = extractFieldValue(text, 'Tweaked Questions Asked');
+  if (tweakedValue) {
+    result.tweakedQuestions = splitListItems(tweakedValue);
+  }
+
+  const actionValue = extractFieldValue(text, 'Action Items');
+  if (actionValue) {
+    result.actionItems = splitListItems(actionValue);
+  }
+
+  const meetingValue = extractFieldValue(text, 'Meet Recording');
+  if (meetingValue) {
+    const meetingMatch = meetingValue.match(/https?:\/\/[^\s)]+/i);
+    if (meetingMatch) result.meetRecording = meetingMatch[0].trim();
+  }
+
+  const meetRecordingMatch = text.match(/https?:\/\/[^\s)]+/i);
+  if (meetRecordingMatch && !result.meetRecording) result.meetRecording = meetRecordingMatch[0].trim();
+
+  return result;
+}
+
 export function parseGranolaTranscript(rawText: string): ParsedTranscriptResult {
   if (!rawText || !rawText.trim()) {
     return {
@@ -13,17 +262,51 @@ export function parseGranolaTranscript(rawText: string): ParsedTranscriptResult 
     };
   }
 
+  const normalized = normalizeRowText(rawText);
+  const sheetRow = parseSheetRow(normalized);
+
+  if (sheetRow.date || sheetRow.instructor || sheetRow.topics || sheetRow.status || sheetRow.questionsAsked?.length) {
+    const date = sheetRow.date || '';
+    const instructor = sheetRow.instructor || sheetRow.instructorName || '';
+    const questionsAsked = sheetRow.questionsAsked || [];
+    const performedWell = sheetRow.performedWell || [];
+    const improvementAreas = sheetRow.improvementAreas || [];
+    const remarks = sheetRow.remarks || [];
+    const actionItems = sheetRow.actionItems || [];
+    const suggestedStatus = (sheetRow.suggestedStatus as 'Need to Revisit' | 'Cleared') || 'Need to Revisit';
+    const suggestedRating = typeof sheetRow.suggestedRating === 'number' ? sheetRow.suggestedRating : 0;
+
+    return {
+      title: '',
+      date,
+      instructor,
+      instructorName: instructor,
+      topics: sheetRow.topics || '',
+      status: sheetRow.status || 'Need to Revisit',
+      questionsAsked,
+      performedWell,
+      improvementAreas,
+      remarks,
+      suggestedStatus,
+      suggestedRating,
+      actionItems,
+      tweakedQuestions: sheetRow.tweakedQuestions || [],
+      meetRecording: sheetRow.meetRecording || '',
+      granolaTranscript: normalized
+    };
+  }
+
   let title = '';
   let date = '';
   let instructor = '';
 
-  const titleMatch = rawText.match(/Meeting Title:\s*(.*)/i);
+  const titleMatch = normalized.match(/Meeting Title:\s*(.*)/i);
   if (titleMatch) title = titleMatch[1].trim();
 
-  const dateMatch = rawText.match(/Date:\s*(.*)/i);
+  const dateMatch = normalized.match(/Date:\s*(.*)/i);
   if (dateMatch) date = dateMatch[1].trim();
 
-  const participantMatch = rawText.match(/Meeting participants:\s*(.*)/i);
+  const participantMatch = normalized.match(/Meeting participants:\s*(.*)/i);
   if (participantMatch) instructor = participantMatch[1].trim();
 
   const questionsAsked: string[] = [];
@@ -32,7 +315,7 @@ export function parseGranolaTranscript(rawText: string): ParsedTranscriptResult 
   const remarks: string[] = [];
   const actionItems: string[] = [];
 
-  const lower = rawText.toLowerCase();
+  const lower = normalized.toLowerCase();
 
   if (lower.includes('declare a variable') || lower.includes('size of int')) {
     questionsAsked.push('Declare a variable in C++ / size of int in bytes');
@@ -69,7 +352,7 @@ export function parseGranolaTranscript(rawText: string): ParsedTranscriptResult 
   }
 
   if (questionsAsked.length === 0) {
-    const lines = rawText.split('\n');
+    const lines = normalized.split('\n');
     for (const l of lines) {
       if ((l.startsWith('Me:') || l.includes('?')) && l.length > 15) {
         const clean = l.replace(/^Me:\s*/i, '').trim();
@@ -117,7 +400,7 @@ export function parseGranolaTranscript(rawText: string): ParsedTranscriptResult 
 
   const feedbackIndex = lower.indexOf('giving you the feedback');
   if (feedbackIndex !== -1) {
-    const feedbackText = rawText.substring(feedbackIndex);
+    const feedbackText = normalized.substring(feedbackIndex);
     if (feedbackText.toLowerCase().includes('implementation')) {
       remarks.push('Candidate understands theoretical high-level concepts (int vs long long, bool values) but struggles significantly with syntax implementation and boundary constraints.');
     }

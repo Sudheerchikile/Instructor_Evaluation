@@ -3,8 +3,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Student, InteractionLog, InstructorUser } from "@/lib/types";
-import { getStoredStudents, getStoredInteractions, addInteractionLog, getInstructorSummaries, exportInteractionsToCSV, getStoredCurrentUser, clearStoredInstructorSession, instructorNamesMatch, saveStudents, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/storage";
-import { Navbar } from "@/components/Navbar";
+import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
+import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
+import { ApiError, createInteraction, fetchCurrentUser, fetchInteractions, fetchStudents, signOut, updateStudentProgress } from "@/lib/api";
+import { AppTab, Navbar } from "@/components/Navbar";
+import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
+import { localDateOf, todayLocal } from "@/lib/dates";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
 import { InstructorLoginModal } from "@/components/InstructorLoginModal";
 import { InteractionRoom } from "@/components/InteractionRoom";
@@ -20,21 +24,28 @@ export default function Home() {
   // Auth gate
   const [currentUser, setCurrentUser] = useState<InstructorUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [activeTab, setActiveTab] = useState<AppTab>("all-students");
 
+  // The session lives in an httpOnly cookie; the server tells us who is signed in.
   useEffect(() => {
-    const user = getStoredCurrentUser();
-    if (!user) { router.replace("/login"); return; }
-    setCurrentUser(user);
-    setAuthChecked(true);
+    fetchCurrentUser()
+      .then((user) => {
+        setCurrentUser(user);
+        if (user.role === "instructor") setActiveTab("my-students");
+        setAuthChecked(true);
+      })
+      .catch(() => router.replace("/login"));
   }, [router]);
 
   // Theme
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  // Read the saved theme on first client render. Safe for hydration: the first render is the
+  // session loader, which doesn't depend on the theme.
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    typeof window !== "undefined" && localStorage.getItem("kkh_theme") === "light" ? "light" : "dark"
+  );
   useEffect(() => {
-    const saved = (localStorage.getItem("kkh_theme") as "light" | "dark") ?? "dark";
-    setTheme(saved);
-    document.documentElement.classList.toggle("dark", saved === "dark");
-  }, []);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
   const handleToggleTheme = () => {
     setTheme((prev) => {
       const next = prev === "dark" ? "light" : "dark";
@@ -45,9 +56,29 @@ export default function Home() {
   };
 
   // App state
-  const [students, setStudents] = useState<Student[]>(() => getStoredStudents());
-  const [interactions, setInteractions] = useState<InteractionLog[]>(() => getStoredInteractions());
-  const [activeTab, setActiveTab] = useState<"my-students" | "all-students" | "analytics" | "logs">("all-students");
+  // Students and interactions come from PostgreSQL via /api; every change is saved there.
+  const [students, setStudents] = useState<Student[]>([]);
+  const [interactions, setInteractions] = useState<InteractionLog[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    let cancelled = false;
+    Promise.all([fetchStudents(), fetchInteractions()])
+      .then(([loadedStudents, loadedInteractions]) => {
+        if (cancelled) return;
+        setStudents(loadedStudents);
+        setInteractions(loadedInteractions);
+        setDataLoaded(true);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) router.replace("/login");
+        else setDataError(`Could not load data: ${err.message}`);
+      });
+    return () => { cancelled = true; };
+  }, [authChecked, router]);
   const [isInstructorModalOpen, setIsInstructorModalOpen] = useState(false);
   const [postInteractionStudent, setPostInteractionStudent] = useState<Student | null>(null);
   const [postInteractionDraft, setPostInteractionDraft] = useState<{ round: number; selectedTopics: string; questionsAskedList: string[]; notes: string; } | null>(null);
@@ -56,61 +87,65 @@ export default function Home() {
   const instructorSummaries = useMemo(() => getInstructorSummaries(students), [students]);
   const currentInstructor = currentUser?.name ?? "";
   const isAdmin = currentUser?.role === "admin";
-  const assignedCount = useMemo(() => isAdmin ? students.length : students.filter((s) => instructorNamesMatch(s.instructor, currentInstructor)).length, [students, currentInstructor, isAdmin]);
+  const assignedCount = useMemo(() => isAdmin ? students.length : students.filter((s) => isStudentAssignedTo(s, currentUser)).length, [students, currentUser, isAdmin]);
 
-  const handleLogout = () => { clearStoredInstructorSession(); router.replace("/login"); };
+  const handleLogout = () => { signOut().catch(() => {}).finally(() => router.replace("/login")); };
   const handleStartInteraction = (student: Student) => {
     setPostInteractionStudent(student);
     setPostInteractionDraft(null);
   };
-  const handleSaveInteraction = (newLog: InteractionLog) => { const updated = addInteractionLog(newLog); setStudents([...updated.students]); setInteractions([...updated.interactions]); };
-  const handleUpdateStudentLevel = (studentId: string, nextLevel: string) => {
-    setStudents((prev) => {
-      const updated = prev.map((student) => {
-        if (student.id !== studentId) return student;
-        const nextStep = student.currentStep && student.level === nextLevel
-          ? student.currentStep
-          : getDefaultStepForLevel(nextLevel);
-        const nextTopic = student.currentTopic && student.level === nextLevel
-          ? student.currentTopic
-          : getDefaultTopicForLevel(nextLevel);
-        return { ...student, level: nextLevel, currentStep: nextStep, currentTopic: nextTopic };
+  const replaceStudent = (updated: Student) => setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+
+  const handleSaveInteraction = (newLog: InteractionLog) => {
+    setDataError(null);
+    createInteraction(newLog)
+      .then(({ student, interaction }) => {
+        replaceStudent(student);
+        setInteractions((prev) => [interaction, ...prev]);
+      })
+      .catch((err: Error) => setDataError(`Interaction for ${newLog.studentName} was not saved: ${err.message}`));
+  };
+
+  // Optimistic update: the change shows at once in "My Students" and the directory, then is saved to the DB.
+  // The server's copy replaces it on success; on failure the previous values are restored.
+  const saveProgress = (studentId: string, patch: { level?: string; currentTopic?: string; currentStep?: string }) => {
+    const previous = students.find((s) => s.id === studentId);
+    if (!previous) return;
+
+    const level = patch.level ?? previous.level;
+    const currentTopic = patch.currentTopic ?? (patch.level ? getDefaultTopicForLevel(level) : previous.currentTopic ?? getDefaultTopicForLevel(level));
+    const currentStep = patch.currentStep ?? (patch.level ? getDefaultStepForLevel(level) : coerceStep(level, currentTopic, previous.currentStep));
+    const next = { level, currentTopic, currentStep };
+
+    setDataError(null);
+    replaceStudent({ ...previous, ...next });
+    updateStudentProgress(studentId, next)
+      .then(replaceStudent)
+      .catch((err: Error) => {
+        replaceStudent(previous);
+        setDataError(`Change for ${previous.name} was not saved: ${err.message}`);
       });
-      saveStudents(updated);
-      return updated;
-    });
   };
-  const handleUpdateStudentStep = (studentId: string, nextStep: string) => {
-    setStudents((prev) => {
-      const updated = prev.map((student) => student.id === studentId ? { ...student, currentStep: nextStep } : student);
-      saveStudents(updated);
-      return updated;
-    });
-  };
-  const handleUpdateStudentTopic = (studentId: string, nextTopic: string) => {
-    setStudents((prev) => {
-      const updated = prev.map((student) => student.id === studentId ? { ...student, currentTopic: nextTopic } : student);
-      saveStudents(updated);
-      return updated;
-    });
-  };
-  const handleSelectInstructor = (name: string) => {
+  const handleUpdateStudentLevel = (studentId: string, nextLevel: string) => saveProgress(studentId, { level: nextLevel });
+  const handleUpdateStudentStep = (studentId: string, nextStep: string) => saveProgress(studentId, { currentStep: nextStep });
+  const handleUpdateStudentTopic = (studentId: string, nextTopic: string) => saveProgress(studentId, { currentTopic: nextTopic });
+  const handleSelectInstructor = () => {
     setActiveTab("analytics");
-    if (name && name !== 'Admin') {
-      const target = students.find((s) => instructorNamesMatch(s.instructor, name));
-      if (target) {
-        // Keep the selected instructor visible in the analytics tab but do not lock the roster to only that instructor.
-      }
-    }
   };
   const handleExportCSV = () => exportInteractionsToCSV(interactions);
 
-  if (!authChecked || !currentUser) {
+  // "Today's Interactions" page only: every instructor's interactions dated today or logged today.
+  const todaysLogs = useMemo(() => {
+    const today = todayLocal();
+    return interactions.filter((log) => log.date === today || localDateOf(log.createdAt) === today);
+  }, [interactions]);
+
+  if (!authChecked || !currentUser || (!dataLoaded && !dataError)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Verifying session...</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{authChecked ? "Loading students..." : "Verifying session..."}</p>
         </div>
       </div>
     );
@@ -126,7 +161,7 @@ export default function Home() {
         setActiveTab={setActiveTab}
         onExportCSV={handleExportCSV}
         onLogout={handleLogout}
-        interactionCount={interactions.length}
+        interactionCount={todaysLogs.length}
         totalStudents={students.length}
         assignedCount={assignedCount}
         theme={theme}
@@ -134,13 +169,18 @@ export default function Home() {
         isAdmin={isAdmin}
       />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-        {activeTab === "my-students" && (
+        {dataError && (
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            {dataError}
+          </div>
+        )}
+        {activeTab === "my-students" && !isAdmin && (
           <div className="space-y-6">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">{isAdmin ? "Assigned Cohort View" : `Students assigned to ${currentInstructor}`}</h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{isAdmin ? `${students.length} total assigned candidates` : `${assignedCount} candidates assigned to you`}</p>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Students assigned to {currentInstructor}</h1>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{assignedCount} candidates assigned to you. Only you can update their level, topic, step and interactions.</p>
             </div>
-            <StudentRosterTable students={students} currentInstructor={currentInstructor} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={false} />
+            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={false} />
           </div>
         )}
         {activeTab === "all-students" && (
@@ -149,15 +189,33 @@ export default function Home() {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manager Dashboard <span className="text-sm font-normal text-zinc-400">{students.length} candidates</span></h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Full student directory with assigned instructor, current level, degree, section, and exam hall details for management review.</p>
             </div>
-            <StudentRosterTable students={students} currentInstructor={currentInstructor} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={true} />
+            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={true} />
           </div>
         )}
-        {activeTab === "logs" && <InteractionLogsTable interactions={interactions} onExportCSV={handleExportCSV} currentInstructor={currentInstructor} />}
-        {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} />}
+        {activeTab === "instructors" && isAdmin && (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Instructors</h1>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Every instructor with full name, company email and assigned students. Click a row to see their students.</p>
+            </div>
+            <InstructorDirectoryTable />
+          </div>
+        )}
+        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} />}
+        {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       <InstructorLoginModal isOpen={isInstructorModalOpen} onClose={() => setIsInstructorModalOpen(false)} currentInstructor={currentInstructor} onSelectInstructor={() => setIsInstructorModalOpen(false)} instructorSummaries={instructorSummaries} />
-      <PostInteractionModal isOpen={!!postInteractionStudent} onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructor={currentInstructor} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
-      <StudentHistoryModal isOpen={!!historyStudent} onClose={() => setHistoryStudent(null)} student={historyStudent} interactions={interactions} onStartNewInteraction={handleStartInteraction} />
+      {postInteractionStudent && (
+        <PostInteractionModal key={postInteractionStudent.id} isOpen onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructor={currentInstructor} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
+      )}
+      <StudentHistoryModal
+        isOpen={!!historyStudent}
+        onClose={() => setHistoryStudent(null)}
+        student={historyStudent}
+        interactions={interactions}
+        onStartNewInteraction={handleStartInteraction}
+        canLogInteraction={!isAdmin && activeTab === "my-students"}
+      />
     </div>
   );
 }

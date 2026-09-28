@@ -1,0 +1,4 @@
+[
+  { "id": "INS001", "firstName": "Firstname", "name": "Firstname Lastname", "email": "firstname.lastname@nxtwave.co.in", "aliases": ["Short name used in students.json"] },
+  { "id": "INS002", "firstName": "Other", "name": "Other Instructor", "email": "other.instructor@nxtwave.co.in", "aliases": [] }
+]

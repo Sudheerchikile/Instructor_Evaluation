@@ -1,0 +1,136 @@
+-- KKH DSA Analytics: PostgreSQL schema (database: kkh_dsa_analytics)
+-- Safe to re-run: every statement is idempotent.
+--
+-- Relationship:  instructors 1 ── * students 1 ── * interactions
+-- instructors and students are reference data (imported once, edited rarely);
+-- interactions is the only table expected to grow.
+
+-- Instructor directory (source: lib/data/instructors.json)
+CREATE TABLE IF NOT EXISTS instructors (
+  id          TEXT PRIMARY KEY,                    -- e.g. INS010
+  first_name  TEXT NOT NULL,                       -- shown in the Student List
+  full_name   TEXT NOT NULL,                       -- shown in the Instructor List
+  email       TEXT NOT NULL UNIQUE,                -- company email
+  aliases     TEXT[] NOT NULL DEFAULT '{}',        -- spelling variants / batch labels, e.g. 'Gaurav - 25'
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS instructors_first_name_idx ON instructors (lower(first_name));
+
+-- Login accounts, created only by `npm run db:users` (no self-registration). Admins have no instructor_id.
+CREATE TABLE IF NOT EXISTS users (
+  id             TEXT PRIMARY KEY,
+  instructor_id  TEXT UNIQUE REFERENCES instructors(id),
+  name           TEXT NOT NULL,
+  email          TEXT NOT NULL UNIQUE,
+  role           TEXT NOT NULL CHECK (role IN ('admin', 'instructor')),
+  hall           TEXT,
+  password_hash  TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Every instructor account must point at a directory instructor; admins must not.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_instructor_consistent') THEN
+    ALTER TABLE users ADD CONSTRAINT users_role_instructor_consistent
+      CHECK ((role = 'instructor') = (instructor_id IS NOT NULL));
+  END IF;
+END $$;
+
+-- Login sessions. Only a SHA-256 hash of the cookie token is stored.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash  TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id);
+
+-- Students (source: lib/data/students.json)
+CREATE TABLE IF NOT EXISTS students (
+  id                TEXT PRIMARY KEY,              -- roll number
+  name              TEXT NOT NULL,
+  degree            TEXT NOT NULL,
+  section           TEXT NOT NULL,
+  hall              TEXT NOT NULL,
+  instructor_raw    TEXT NOT NULL DEFAULT '',      -- instructor value exactly as in the Student List
+  instructor_id     TEXT REFERENCES instructors(id),
+  instructor_match  TEXT NOT NULL DEFAULT 'unmatched'
+                    CHECK (instructor_match IN ('matched', 'ambiguous', 'unmatched')),
+  level             SMALLINT NOT NULL DEFAULT 0 CHECK (level BETWEEN 0 AND 7),
+  current_topic     TEXT NOT NULL DEFAULT 'Introduction',
+  current_step      TEXT NOT NULL DEFAULT 'Introduction',
+  status            TEXT NOT NULL DEFAULT 'Pending Evaluation',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT students_match_consistent CHECK ((instructor_match = 'matched') = (instructor_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS students_instructor_idx ON students (instructor_id);
+-- New students start at Level 0 / Introduction / Introduction.
+ALTER TABLE students ALTER COLUMN current_topic SET DEFAULT 'Introduction';
+ALTER TABLE students ALTER COLUMN status SET DEFAULT 'Pending Evaluation';
+
+-- Interaction / feedback history. Field names mirror InteractionLog in lib/types.ts.
+CREATE TABLE IF NOT EXISTS interactions (
+  id                        TEXT PRIMARY KEY,
+  student_id                TEXT NOT NULL REFERENCES students(id),
+  student_name              TEXT NOT NULL,          -- snapshot at log time
+  instructor_name           TEXT NOT NULL DEFAULT '', -- "interaction taken by", as entered
+  instructor_email          TEXT,
+  taken_by_instructor_id    TEXT REFERENCES instructors(id),
+  assigned_instructor_id    TEXT REFERENCES instructors(id),
+  assigned_instructor_name  TEXT,                   -- snapshot at log time
+  level                     SMALLINT CHECK (level BETWEEN 0 AND 7), -- student's level at log time
+  current_step              TEXT,                   -- student's step at log time
+  topics                    TEXT NOT NULL DEFAULT '',
+  status_post_interaction   TEXT NOT NULL,
+  rating                    NUMERIC(2, 1) NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+  questions_asked           TEXT NOT NULL DEFAULT '',
+  remarks                   TEXT NOT NULL DEFAULT '',
+  performed_well            TEXT NOT NULL DEFAULT '',
+  improvement_areas         TEXT NOT NULL DEFAULT '',
+  tweaked_questions         TEXT NOT NULL DEFAULT '',
+  action_items              TEXT NOT NULL DEFAULT '',
+  meet_recording            TEXT NOT NULL DEFAULT '',
+  granola_transcript        TEXT NOT NULL DEFAULT '',
+  interaction_round         SMALLINT NOT NULL DEFAULT 1,
+  date                      DATE NOT NULL,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by                TEXT REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS interactions_student_date_idx ON interactions (student_id, date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS interactions_date_idx ON interactions (date);
+
+-- Student + matched instructor + derived interaction stats.
+-- interactionCount and lastInteractionDate are computed, never stored, so they can't drift.
+-- level_status is the student's standing at their CURRENT level, from the latest interaction logged at
+-- that level (older logs without a level were all Level 0). No interaction at the current level means
+-- 'Pending Evaluation', so a promoted student is pending again until evaluated at the new level.
+CREATE OR REPLACE VIEW student_overview AS
+SELECT
+  s.*,
+  i.first_name  AS instructor_first_name,
+  i.full_name   AS instructor_full_name,
+  i.email       AS instructor_email,
+  COALESCE(x.interaction_count, 0) AS interaction_count,
+  x.last_interaction_date,
+  CASE cur.status_post_interaction
+    WHEN 'Need to Revisit' THEN 'Needs Revisit'
+    WHEN 'Cleared' THEN 'Cleared'
+    WHEN 'In Progress' THEN 'In Progress'
+    ELSE 'Pending Evaluation'
+  END AS level_status,
+  COALESCE(cur.level_interaction_count, 0) AS level_interaction_count
+FROM students s
+LEFT JOIN instructors i ON i.id = s.instructor_id
+LEFT JOIN (
+  SELECT student_id, count(*)::int AS interaction_count, max(date) AS last_interaction_date
+  FROM interactions
+  GROUP BY student_id
+) x ON x.student_id = s.id
+LEFT JOIN LATERAL (
+  SELECT it.status_post_interaction, count(*) OVER ()::int AS level_interaction_count
+  FROM interactions it
+  WHERE it.student_id = s.id AND COALESCE(it.level, 0) = s.level
+  ORDER BY it.date DESC, it.created_at DESC
+  LIMIT 1
+) cur ON true;

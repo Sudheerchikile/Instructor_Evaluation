@@ -1,15 +1,17 @@
 "use client";
 
 import React from "react";
-import { Users, BarChart2, FileSpreadsheet, Download, UserCheck, ChevronDown, Sun, Moon, Layers, LogOut, ShieldCheck } from "lucide-react";
+import { Users, BarChart2, FileSpreadsheet, Download, UserCheck, Sun, Moon, Layers, LogOut, ShieldCheck, Contact } from "lucide-react";
 import { InstructorUser } from "@/lib/types";
+
+export type AppTab = "my-students" | "all-students" | "instructors" | "analytics" | "logs";
 
 interface NavbarProps {
   currentInstructor: string;
   currentUser: InstructorUser;
   onOpenInstructorModal: () => void;
-  activeTab: "my-students" | "all-students" | "analytics" | "logs";
-  setActiveTab: (tab: "my-students" | "all-students" | "analytics" | "logs") => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
   onExportCSV: () => void;
   onLogout: () => void;
   interactionCount: number;
@@ -35,9 +37,14 @@ export function Navbar({ currentInstructor, currentUser, onOpenInstructorModal, 
         </div>
         <nav className="hidden md:flex items-center rounded-lg border border-zinc-200/90 bg-zinc-100/70 p-0.5 dark:border-zinc-800 dark:bg-zinc-900/70">
           <button onClick={() => setActiveTab("all-students")} className={tabCls("all-students")}><Users className="h-3.5 w-3.5" /><span>Directory</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{totalStudents}</span></button>
-          <button onClick={() => setActiveTab("my-students")} className={tabCls("my-students")}><UserCheck className="h-3.5 w-3.5" /><span>Assigned</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{assignedCount}</span></button>
+          {/* Admins read everything but edit nothing, so they get the Instructor List instead of an Assigned page. */}
+          {isAdmin ? (
+            <button onClick={() => setActiveTab("instructors")} className={tabCls("instructors")}><Contact className="h-3.5 w-3.5" /><span>Instructors</span></button>
+          ) : (
+            <button onClick={() => setActiveTab("my-students")} className={tabCls("my-students")}><UserCheck className="h-3.5 w-3.5" /><span>Assigned</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{assignedCount}</span></button>
+          )}
           <button onClick={() => setActiveTab("analytics")} className={tabCls("analytics")}><BarChart2 className="h-3.5 w-3.5" /><span>Analytics</span></button>
-          <button onClick={() => setActiveTab("logs")} className={tabCls("logs")}><FileSpreadsheet className="h-3.5 w-3.5" /><span>Logs</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{interactionCount}</span></button>
+          <button onClick={() => setActiveTab("logs")} className={tabCls("logs")}><FileSpreadsheet className="h-3.5 w-3.5" /><span>Today&apos;s Interactions</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{interactionCount}</span></button>
         </nav>
         <div className="flex items-center gap-2">
           <button onClick={onToggleTheme} title="Toggle theme" className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors cursor-pointer">

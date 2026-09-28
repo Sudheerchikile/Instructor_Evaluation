@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE_NAME } from './lib/sessionCookie';
 
-// Must match AUTH_COOKIE_NAME in lib/storage.ts
-const AUTH_COOKIE_NAME = 'kkh_auth_session';
+// Fast gate only: redirects to /login when there is no session cookie. The session itself is
+// validated against the database by /api/auth/me and every API route.
 
 // Public routes that do not require authentication
 const PUBLIC_ROUTES = ['/login'];
@@ -18,7 +19,7 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const sessionCookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
 
   if (!sessionCookie) {
     const loginUrl = new URL('/login', req.nextUrl);

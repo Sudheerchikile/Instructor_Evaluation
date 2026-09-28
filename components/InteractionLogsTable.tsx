@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { InteractionLog } from '@/lib/types';
+import { todayLocal } from '@/lib/dates';
 import { 
   Search, 
   Download, 
@@ -45,14 +46,14 @@ export function InteractionLogsTable({
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              Evaluation & Interaction Logs (Sheet 2 Schema)
+              Today&apos;s Interactions
             </h2>
             <span className="font-mono text-xs text-zinc-500">
-              ({interactions.length} records)
+              ({todayLocal()} • {interactions.length} {interactions.length === 1 ? 'record' : 'records'})
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Synchronized records matching the 12-column Google Spreadsheet evaluation schema.
+            Interactions taken today by all instructors. Earlier sessions are in each student&apos;s history.
           </p>
         </div>
 
@@ -61,7 +62,7 @@ export function InteractionLogsTable({
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer self-start sm:self-auto"
         >
           <Download className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-          <span>Export All Logs (CSV)</span>
+          <span>Export Today (CSV)</span>
         </button>
       </div>
 
@@ -167,7 +168,7 @@ export function InteractionLogsTable({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-xs text-zinc-500">
-                    No matching logs found.
+                    {interactions.length === 0 ? 'No interactions logged today yet.' : 'No matching logs found.'}
                   </td>
                 </tr>
               )}

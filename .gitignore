@@ -46,3 +46,10 @@ login.txt
 next-env.d.ts
 
 .vercel
+!.env.example
+
+# login accounts with plain-text passwords (loaded by npm run db:users)
+db/*.local.csv
+
+# instructor directory with staff emails (copy lib/data/instructors.example.json to create it)
+lib/data/instructors.json
