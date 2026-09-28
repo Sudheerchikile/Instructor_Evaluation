@@ -40,5 +40,8 @@ export const fetchInteractions = () => request<InteractionLog[]>('/api/interacti
 export const updateStudentProgress = (id: string, patch: { level?: string; currentTopic?: string; currentStep?: string }) =>
   request<Student>(`/api/students/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
+export const updateInteraction = (id: string, patch: Partial<InteractionLog>) =>
+  request<{ student: Student; interaction: InteractionLog }>(`/api/interactions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
 export const createInteraction = (log: InteractionLog) =>
   request<{ student: Student; interaction: InteractionLog }>('/api/interactions', { method: 'POST', body: JSON.stringify(log) });

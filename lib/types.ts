@@ -46,6 +46,8 @@ export interface InteractionLog {
   currentStep?: string;  // student's step when the interaction was logged
   date: string;
   createdAt: string;
+  createdBy?: string | null;  // user id of whoever logged it
+  updatedAt?: string | null;  // set when the interaction has been edited
 }
 
 // API shape: Student List entry, enriched with the matched instructor and full feedback history.

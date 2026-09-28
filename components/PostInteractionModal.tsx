@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Student, InteractionLog, InstructorOption } from '@/lib/types';
 import { todayLocal } from '@/lib/dates';
+import { blockKeyboardSubmit } from '@/lib/forms';
 import { X, Save } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
 
@@ -19,6 +20,7 @@ interface PostInteractionModalProps {
     notes: string;
   } | null;
   onSave: (log: InteractionLog) => void;
+  editing?: InteractionLog | null; // when set, the form edits this interaction instead of logging a new one
 }
 
 // Rendered only while a student is selected (see app/page.tsx), so every open starts from fresh state.
@@ -29,25 +31,30 @@ export function PostInteractionModal({
   currentInstructorId,
   instructorOptions,
   initialDraft,
-  onSave
+  onSave,
+  editing = null
 }: PostInteractionModalProps) {
   // Student and assigned instructor come from the selected student; the date defaults to today but stays editable.
-  const [interactionDate, setInteractionDate] = useState(todayLocal);
-  const studentName = student?.name ?? '';
-  const assignedInstructorName = student?.instructorFullName || student?.instructor || '';
-  // Defaults to the signed-in instructor; may be changed to the colleague who took the session.
-  const [takenById, setTakenById] = useState<string | null>(currentInstructorId ?? null);
+  // When editing, every field starts from the saved interaction.
+  const [interactionDate, setInteractionDate] = useState(() => editing?.date ?? todayLocal());
+  const studentName = editing?.studentName ?? student?.name ?? '';
+  const assignedInstructorName = editing?.assignedInstructorName || student?.instructorFullName || student?.instructor || '';
+  // New logs default to the signed-in instructor; may be changed to the colleague who took the session.
+  const [takenById, setTakenById] = useState<string | null>(editing ? editing.takenByInstructorId ?? null : currentInstructorId ?? null);
   const [takenByError, setTakenByError] = useState(false);
-  const [topics, setTopics] = useState('');
-  const [statusPostInteraction, setStatusPostInteraction] = useState<'Need to Revisit' | 'Cleared' | 'In Progress'>('Need to Revisit');
-  const [rating, setRating] = useState<number>(0);
-  const [questionsAsked, setQuestionsAsked] = useState<string>('');
-  const [remarks, setRemarks] = useState<string>('');
-  const [performedWell, setPerformedWell] = useState<string>('');
-  const [improvementAreas, setImprovementAreas] = useState<string>('');
-  const [tweakedQuestions, setTweakedQuestions] = useState<string>('');
-  const [actionItems, setActionItems] = useState<string>('');
-  const [meetRecording, setMeetRecording] = useState<string>('');
+  const [topics, setTopics] = useState(editing?.topics ?? '');
+  const [statusPostInteraction, setStatusPostInteraction] = useState<'Need to Revisit' | 'Cleared' | 'In Progress'>(() => {
+    const saved = editing?.statusPostInteraction;
+    return saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit';
+  });
+  const [rating, setRating] = useState<number>(editing ? Number(editing.rating) : 0);
+  const [questionsAsked, setQuestionsAsked] = useState<string>(editing?.questionsAsked ?? '');
+  const [remarks, setRemarks] = useState<string>(editing?.remarks ?? '');
+  const [performedWell, setPerformedWell] = useState<string>(editing?.performedWell ?? '');
+  const [improvementAreas, setImprovementAreas] = useState<string>(editing?.improvementAreas ?? '');
+  const [tweakedQuestions, setTweakedQuestions] = useState<string>(editing?.tweakedQuestions ?? '');
+  const [actionItems, setActionItems] = useState<string>(editing?.actionItems ?? '');
+  const [meetRecording, setMeetRecording] = useState<string>(editing?.meetRecording ?? '');
 
   const [interactionRound] = useState(initialDraft?.round || 1);
 
@@ -62,7 +69,8 @@ export function PostInteractionModal({
     }
 
     const log: InteractionLog = {
-      id: `int-${Date.now()}`,
+      ...(editing ?? {}),
+      id: editing?.id ?? `int-${Date.now()}`,
       studentId: student.id,
       studentName,
       instructorName: takenBy.name,
@@ -79,11 +87,12 @@ export function PostInteractionModal({
       actionItems,
       meetRecording,
       granolaTranscript: '',
-      interactionRound,
-      level: student.level,
-      currentStep: student.currentStep,
+      interactionRound: editing?.interactionRound ?? interactionRound,
+      // An edit keeps the level/step snapshot and creation time of the original log.
+      level: editing ? editing.level : student.level,
+      currentStep: editing ? editing.currentStep : student.currentStep,
       date: interactionDate || todayLocal(),
-      createdAt: new Date().toISOString()
+      createdAt: editing?.createdAt ?? new Date().toISOString()
     };
 
     onSave(log);
@@ -98,7 +107,7 @@ export function PostInteractionModal({
           <div>
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-                Record Evaluation Session
+                {editing ? 'Edit Interaction' : 'Record Evaluation Session'}
               </span>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -113,7 +122,8 @@ export function PostInteractionModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto text-xs">
+        {/* Saved only by clicking the Save button: Enter/Space never submit this form. */}
+        <form onSubmit={handleSubmit} onKeyDown={blockKeyboardSubmit} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto text-xs">
           {/* Form Fields: Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -368,7 +378,7 @@ export function PostInteractionModal({
               className="inline-flex items-center gap-1.5 h-8 px-4 rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white font-medium cursor-pointer shadow-xs"
             >
               <Save className="h-3.5 w-3.5" />
-              <span>Save Interaction</span>
+              <span>{editing ? 'Save Changes' : 'Save Interaction'}</span>
             </button>
           </div>
         </form>

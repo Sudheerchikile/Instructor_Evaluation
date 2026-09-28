@@ -9,6 +9,7 @@ import {
   ExternalLink, 
   X, 
   Eye,
+  Pencil,
   FileSpreadsheet
 } from 'lucide-react';
 
@@ -16,11 +17,15 @@ interface InteractionLogsTableProps {
   interactions: InteractionLog[];
   onExportCSV: () => void;
   currentInstructor: string;
+  canEdit?: (log: InteractionLog) => boolean;
+  onEdit?: (log: InteractionLog) => void;
 }
 
 export function InteractionLogsTable({
   interactions,
-  onExportCSV
+  onExportCSV,
+  canEdit = () => false,
+  onEdit
 }: InteractionLogsTableProps) {
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<InteractionLog | null>(null);
@@ -30,6 +35,7 @@ export function InteractionLogsTable({
     const q = search.toLowerCase();
     return (
       log.instructorName.toLowerCase().includes(q) ||
+      (log.assignedInstructorName || '').toLowerCase().includes(q) ||
       log.studentName.toLowerCase().includes(q) ||
       log.studentId.toLowerCase().includes(q) ||
       log.topics.toLowerCase().includes(q) ||
@@ -84,8 +90,9 @@ export function InteractionLogsTable({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/60 font-medium text-zinc-500 dark:text-zinc-400">
-                <th className="py-2.5 pl-4 pr-3">Instructor</th>
-                <th className="py-2.5 px-3">Candidate</th>
+                <th className="py-2.5 pl-4 pr-3">Candidate</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Assigned Instructor</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Taken By</th>
                 <th className="py-2.5 px-3">Topics Covered</th>
                 <th className="py-2.5 px-3">Status Post Interaction</th>
                 <th className="py-2.5 px-3 text-center">Rating</th>
@@ -104,17 +111,22 @@ export function InteractionLogsTable({
                     key={log.id}
                     className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
                   >
-                    <td className="py-2.5 pl-4 pr-3 font-medium text-zinc-900 dark:text-zinc-100">
-                      {log.instructorName}
-                    </td>
-
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 pl-4 pr-3">
                       <div className="font-medium text-zinc-900 dark:text-zinc-100">
                         {log.studentName}
                       </div>
                       <div className="text-[11px] font-mono text-zinc-400">
                         {log.studentId}
                       </div>
+                    </td>
+
+                    <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
+                      {log.assignedInstructorName || '—'}
+                    </td>
+
+                    <td className="py-2.5 px-3">
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">{log.instructorName}</span>
+                      {log.updatedAt && <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" title={`Edited ${new Date(log.updatedAt).toLocaleString()}`}>edited</span>}
                     </td>
 
                     <td className="py-2.5 px-3 max-w-[140px] truncate text-zinc-700 dark:text-zinc-300">
@@ -167,7 +179,7 @@ export function InteractionLogsTable({
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-xs text-zinc-500">
+                  <td colSpan={9} className="py-12 text-center text-xs text-zinc-500">
                     {interactions.length === 0 ? 'No interactions logged today yet.' : 'No matching logs found.'}
                   </td>
                 </tr>
@@ -186,12 +198,11 @@ export function InteractionLogsTable({
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   Interaction Evaluation Record
                 </h3>
-                <div className="flex items-center gap-2 text-xs text-zinc-500 mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
                   <span>Candidate: <strong className="text-zinc-900 dark:text-zinc-100 font-medium">{selectedLog.studentName}</strong> ({selectedLog.studentId})</span>
                   <span>•</span>
-                  <span>Evaluator: <strong className="text-zinc-900 dark:text-zinc-100 font-medium">{selectedLog.instructorName}</strong></span>
-                  <span>•</span>
                   <span className="font-mono">{selectedLog.date}</span>
+                  {selectedLog.updatedAt && <><span>•</span><span>edited {new Date(selectedLog.updatedAt).toLocaleString()}</span></>}
                 </div>
               </div>
 
@@ -203,67 +214,52 @@ export function InteractionLogsTable({
               </button>
             </div>
 
-            <div className="mt-4 space-y-4 max-h-[70vh] overflow-y-auto pr-1 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                  <span className="text-[11px] font-medium text-zinc-500 block mb-1">Topics</span>
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">{selectedLog.topics}</span>
-                </div>
-
-                <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                  <span className="text-[11px] font-medium text-zinc-500 block mb-1">Status & Score</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{selectedLog.statusPostInteraction}</span>
-                    <span className="font-mono text-zinc-500">({selectedLog.rating}/5)</span>
+            <div className="mt-4 space-y-3 max-h-[70vh] overflow-y-auto pr-1 text-xs">
+              {/* Every field the instructor filled in. Empty text fields show "Not filled". */}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                {[
+                  ['Assigned Instructor', selectedLog.assignedInstructorName || '—'],
+                  ['Interaction Taken By', selectedLog.instructorName || '—'],
+                  ['Interaction Date', selectedLog.date],
+                  ['Status', selectedLog.statusPostInteraction],
+                  ['Rating', `${selectedLog.rating} / 5`],
+                  ['Level & Step (when logged)', [selectedLog.level, selectedLog.currentStep].filter(Boolean).join(' • ') || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+                    <span className="mb-1 block text-[11px] font-medium text-zinc-500">{label}</span>
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{value}</span>
                   </div>
-                </div>
+                ))}
               </div>
 
-              <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                <span className="text-[11px] font-medium text-zinc-500 block mb-1">Questions Asked</span>
-                <p className="font-mono text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed">
-                  {selectedLog.questionsAsked || 'None logged'}
-                </p>
-              </div>
-
-              <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                <span className="text-[11px] font-medium text-zinc-500 block mb-1">Instructor Remarks</span>
-                <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed">
-                  {selectedLog.remarks || 'None logged'}
-                </p>
-              </div>
-
-              {selectedLog.performedWell && (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                  <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-400 block mb-1">Performed Well</span>
-                  <p className="text-emerald-950 dark:text-emerald-200 whitespace-pre-line leading-relaxed">
-                    {selectedLog.performedWell}
+              {([
+                ['Topics', selectedLog.topics, false],
+                ['Questions Asked', selectedLog.questionsAsked, true],
+                ['Remarks by Instructor', selectedLog.remarks, false],
+                ['Performed Well', selectedLog.performedWell, false],
+                ['Improvement Areas', selectedLog.improvementAreas, false],
+                ['Tweaked Questions Asked', selectedLog.tweakedQuestions, true],
+                ['Action Items', selectedLog.actionItems, false],
+              ] as const).map(([label, value, mono]) => (
+                <div key={label} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+                  <span className="mb-1 block text-[11px] font-medium text-zinc-500">{label}</span>
+                  <p className={`whitespace-pre-line leading-relaxed ${value ? 'text-zinc-800 dark:text-zinc-200' : 'italic text-zinc-400'} ${mono && value ? 'font-mono text-[11px]' : ''}`}>
+                    {value || 'Not filled'}
                   </p>
                 </div>
-              )}
+              ))}
 
-              {selectedLog.actionItems && (
-                <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                  <span className="text-[11px] font-medium text-zinc-500 block mb-1">Action Items</span>
-                  <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-line leading-relaxed">
-                    {selectedLog.actionItems}
-                  </p>
-                </div>
-              )}
-
-              {selectedLog.meetRecording && (
-                <div className="pt-1">
-                  <a
-                    href={selectedLog.meetRecording}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-900 hover:underline dark:text-zinc-100"
-                  >
-                    <span>Open Meet Recording</span>
-                    <ExternalLink className="h-3 w-3" />
+              <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+                <span className="mb-1 block text-[11px] font-medium text-zinc-500">Meet Recording</span>
+                {selectedLog.meetRecording ? (
+                  <a href={selectedLog.meetRecording} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 break-all font-medium text-zinc-900 hover:underline dark:text-zinc-100">
+                    {selectedLog.meetRecording}
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
-                </div>
-              )}
+                ) : (
+                  <p className="italic text-zinc-400">Not filled</p>
+                )}
+              </div>
 
               {selectedLog.granolaTranscript && (
                 <div className="rounded-md border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/70">
@@ -275,7 +271,16 @@ export function InteractionLogsTable({
               )}
             </div>
 
-            <div className="mt-5 flex justify-end border-t border-zinc-200 pt-3 dark:border-zinc-800">
+            <div className="mt-5 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              {onEdit && canEdit(selectedLog) && (
+                <button
+                  onClick={() => { const log = selectedLog; setSelectedLog(null); onEdit(log); }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white transition-colors cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit interaction
+                </button>
+              )}
               <button
                 onClick={() => setSelectedLog(null)}
                 className="h-8 px-3 rounded-md border border-zinc-200 bg-white text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors cursor-pointer"

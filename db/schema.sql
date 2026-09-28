@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS interactions (
 );
 CREATE INDEX IF NOT EXISTS interactions_student_date_idx ON interactions (student_id, date DESC, created_at DESC);
 CREATE INDEX IF NOT EXISTS interactions_date_idx ON interactions (date);
+-- Edit history: last edit time and who made it (no FK, so removing a login never blocks this).
+ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_by TEXT;
 
 -- Student + matched instructor + derived interaction stats.
 -- interactionCount and lastInteractionDate are computed, never stored, so they can't drift.

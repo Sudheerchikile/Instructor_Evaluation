@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Eye, EyeOff, Loader2, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, Student } from '@/lib/types';
 import { createInstructor } from '@/lib/api';
+import { blockKeyboardSubmit } from '@/lib/forms';
 
 const MIN_PASSWORD_LENGTH = 8; // must match db/queries.ts
 
@@ -73,7 +74,7 @@ export function AddInstructorForm({ students, onClose, onCreated }: AddInstructo
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[80vh] space-y-4 overflow-y-auto p-6 text-xs">
+        <form onSubmit={handleSubmit} onKeyDown={blockKeyboardSubmit} className="max-h-[80vh] space-y-4 overflow-y-auto p-6 text-xs">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className={label}>Full name <span className="text-rose-500">*</span></label>

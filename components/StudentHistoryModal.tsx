@@ -13,6 +13,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Pencil,
   HelpCircle,
   MessageSquare,
   ThumbsUp,
@@ -27,6 +28,8 @@ interface StudentHistoryModalProps {
   interactions: InteractionLog[];
   onStartNewInteraction: (student: Student) => void;
   canLogInteraction?: boolean;
+  canEdit?: (log: InteractionLog) => boolean;
+  onEdit?: (log: InteractionLog) => void;
 }
 
 // Dimmed-grey reading panel (low glare for long review sessions), deliberately different from the
@@ -82,7 +85,9 @@ export function StudentHistoryModal({
   student,
   interactions,
   onStartNewInteraction,
-  canLogInteraction = false
+  canLogInteraction = false,
+  canEdit = () => false,
+  onEdit
 }: StudentHistoryModalProps) {
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<string, boolean>>({});
 
@@ -192,11 +197,25 @@ export function StudentHistoryModal({
                           <div className="mt-1 text-[13px] font-medium text-[#cdd9e5]">{log.topics}</div>
                           <div className="mt-0.5 text-[11px] text-[#909dab]">
                             <span className="font-mono">{log.date}</span> • Taken by <span className="font-medium text-[#adbac7]">{log.instructorName}</span>
+                            {log.updatedAt && <span title={`Edited ${new Date(log.updatedAt).toLocaleString()}`}> • edited</span>}
                           </div>
                         </div>
-                        <div className="shrink-0 rounded-md bg-[#1c2128] px-2.5 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-[#768390]">Rating</div>
-                          <div className="font-mono text-sm font-semibold text-[#cdd9e5]">{log.rating}<span className="text-[#768390]">/5</span></div>
+                        <div className="flex shrink-0 items-start gap-2">
+                          {onEdit && canEdit(log) && (
+                            <button
+                              type="button"
+                              onClick={() => onEdit(log)}
+                              title="Edit this interaction"
+                              className="inline-flex h-8 items-center gap-1 rounded-md border border-[#545d68] bg-[#373e47] px-2.5 text-[11px] font-medium text-[#cdd9e5] hover:bg-[#444c56] transition-colors cursor-pointer"
+                            >
+                              <Pencil className="h-3 w-3" />
+                              Edit
+                            </button>
+                          )}
+                          <div className="rounded-md bg-[#1c2128] px-2.5 py-1.5 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-[#768390]">Rating</div>
+                            <div className="font-mono text-sm font-semibold text-[#cdd9e5]">{log.rating}<span className="text-[#768390]">/5</span></div>
+                          </div>
                         </div>
                       </div>
 

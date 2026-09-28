@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Student, InteractionLog, InstructorUser, InstructorOption } from "@/lib/types";
 import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
 import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
-import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateStudentProgress } from "@/lib/api";
+import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
 import { localDateOf, todayLocal } from "@/lib/dates";
@@ -80,6 +80,7 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [authChecked, router]);
   const [postInteractionStudent, setPostInteractionStudent] = useState<Student | null>(null);
+  const [editingLog, setEditingLog] = useState<InteractionLog | null>(null);
   const [postInteractionDraft, setPostInteractionDraft] = useState<{ round: number; selectedTopics: string; questionsAskedList: string[]; notes: string; } | null>(null);
   const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
 
@@ -90,13 +91,38 @@ export default function Home() {
 
   const handleLogout = () => { signOut().catch(() => {}).finally(() => router.replace("/login")); };
   const handleStartInteraction = (student: Student) => {
+    setEditingLog(null);
     setPostInteractionStudent(student);
     setPostInteractionDraft(null);
   };
+
+  // Same rule as the server: the student's assigned instructor, or whoever logged it. Admins are read-only.
+  const canEditInteraction = (log: InteractionLog) => {
+    if (!currentUser || currentUser.role !== "instructor") return false;
+    const student = students.find((s) => s.id === log.studentId);
+    return (!!student?.instructorId && student.instructorId === currentUser.instructorId) || log.createdBy === currentUser.id;
+  };
+  const handleEditInteraction = (log: InteractionLog) => {
+    const student = students.find((s) => s.id === log.studentId);
+    if (!student) return;
+    setHistoryStudent(null);
+    setEditingLog(log);
+    setPostInteractionStudent(student);
+  };
+  const closeInteractionForm = () => { setPostInteractionStudent(null); setPostInteractionDraft(null); setEditingLog(null); };
   const replaceStudent = (updated: Student) => setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
 
   const handleSaveInteraction = (newLog: InteractionLog) => {
     setDataError(null);
+    if (editingLog) {
+      updateInteraction(editingLog.id, newLog)
+        .then(({ student, interaction }) => {
+          replaceStudent(student);
+          setInteractions((prev) => prev.map((l) => (l.id === interaction.id ? interaction : l)));
+        })
+        .catch((err: Error) => setDataError(`Changes for ${newLog.studentName} were not saved: ${err.message}`));
+      return;
+    }
     createInteraction(newLog)
       .then(({ student, interaction }) => {
         replaceStudent(student);
@@ -199,11 +225,11 @@ export default function Home() {
             <InstructorDirectoryTable students={students} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
           </div>
         )}
-        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} />}
+        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} canEdit={canEditInteraction} onEdit={handleEditInteraction} />}
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       {postInteractionStudent && (
-        <PostInteractionModal key={postInteractionStudent.id} isOpen onClose={() => { setPostInteractionStudent(null); setPostInteractionDraft(null); }} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
+        <PostInteractionModal key={editingLog?.id ?? postInteractionStudent.id} isOpen onClose={closeInteractionForm} editing={editingLog} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
       )}
       <StudentHistoryModal
         isOpen={!!historyStudent}
@@ -212,6 +238,8 @@ export default function Home() {
         interactions={interactions}
         onStartNewInteraction={handleStartInteraction}
         canLogInteraction={!isAdmin && activeTab === "my-students"}
+        canEdit={canEditInteraction}
+        onEdit={handleEditInteraction}
       />
     </div>
   );

@@ -396,6 +396,16 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Tested end to end with a temporary instructor, since removed: validations, a 403 for non-admins, counts 37→35 / 0→2, the new login seeing and editing its students, and the old instructor being blocked from the moved students.
     - Only existing roll numbers can be assigned. Adding brand-new students is a separate, future feature.
 
+22. **Logged interactions can be edited.**
+    - Route: `PATCH /api/interactions/[id]` (`updateInteraction` in `db/queries.ts`).
+    - Allowed for the student's **assigned instructor** or the **person who logged it** (`created_by`). Admins get 403.
+    - Editable: date, taken by, topics, status, rating and every text field. Fixed: the student, the level/step snapshot and the creation time.
+    - Same validation as creating, via the shared `validateInteractionFields`: date format, no future dates, rating 0–5, known status, and a taken-by that exists in `instructors`.
+    - New columns: `interactions.updated_at` and `updated_by`, exposed as `updatedAt`; `createdBy` is exposed too. An "edited" tag appears in the table and the history popup.
+    - Where to edit: **Inspect → Edit interaction** on Today's Interactions, or **Edit** on each entry in a student's history. Both open the same form (`PostInteractionModal` with `editing`), pre-filled.
+    - Because student status is derived, an edited status updates the student and every count immediately.
+23. **Today's Interactions** now has separate **Assigned Instructor** and **Taken By** columns. **Inspect** shows every field: assigned / taken by, date, status, rating, level and step when logged, topics, questions, remarks, performed well, improvement areas, tweaked questions, action items and the meet recording. Empty ones show "Not filled".
+
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
 - Instructors can still read the full Directory, Analytics and Logs (the earlier rule). Hide these if instructors should see only their own students.

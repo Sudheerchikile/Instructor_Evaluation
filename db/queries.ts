@@ -45,7 +45,9 @@ const INTERACTION_JSON = `
     'granolaTranscript', it.granola_transcript,
     'interactionRound', it.interaction_round,
     'date', to_char(it.date, 'YYYY-MM-DD'),
-    'createdAt', it.created_at
+    'createdAt', it.created_at,
+    'createdBy', it.created_by,
+    'updatedAt', it.updated_at
   )`;
 
 interface StudentOverviewRow {
@@ -181,13 +183,72 @@ export async function insertInteraction(
 }
 
 // Saves an interaction and updates the student's status in one transaction.
-export async function addInteraction(log: InteractionLog, actor: InstructorUser): Promise<{ student: Student; interaction: InteractionLog }> {
+const STATUSES = ['Need to Revisit', 'Cleared', 'In Progress'];
+
+// Field checks shared by creating and editing an interaction.
+function validateInteractionFields(log: Pick<InteractionLog, 'date' | 'rating' | 'statusPostInteraction'>) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date || '')) throw new ValidationError('Interaction date must be YYYY-MM-DD.');
   // No future-dated interactions. The server runs in UTC; +14h covers every user timezone's "today".
   if (log.date > new Date(Date.now() + 14 * 3600 * 1000).toISOString().slice(0, 10)) {
     throw new ValidationError('Interaction date cannot be in the future.');
   }
   if (!(Number(log.rating) >= 0 && Number(log.rating) <= 5)) throw new ValidationError('Rating must be between 0 and 5.');
+  if (!STATUSES.includes(log.statusPostInteraction)) throw new ValidationError('Choose a valid status.');
+}
+
+async function getInteraction(id: string): Promise<InteractionLog | null> {
+  const { rows } = await getPool().query<{ log: InteractionLog }>(`SELECT ${INTERACTION_JSON} AS log FROM interactions it WHERE it.id = $1`, [id]);
+  return rows[0]?.log ?? null;
+}
+
+// Edit a logged interaction. Allowed for the student's assigned instructor or whoever logged it.
+// Student, level/step snapshot and creation time are fixed; the rest can be corrected.
+export async function updateInteraction(
+  id: string,
+  patch: Partial<InteractionLog>,
+  actor: InstructorUser
+): Promise<{ student: Student; interaction: InteractionLog }> {
+  const current = await getInteraction(id);
+  if (!current) throw new ValidationError('Interaction not found.');
+  const student = await getStudent(current.studentId);
+  if (!student) throw new ValidationError('Student not found.');
+
+  const isAssigned = actor.role === 'instructor' && !!actor.instructorId && student.instructorId === actor.instructorId;
+  const isAuthor = actor.role === 'instructor' && current.createdBy === actor.id;
+  if (!isAssigned && !isAuthor) {
+    throw new ForbiddenError('Only the assigned instructor or the person who logged this interaction can edit it.');
+  }
+
+  const next = { ...current, ...patch };
+  validateInteractionFields(next);
+
+  const client = await getPool().connect();
+  try {
+    const directory = await loadDirectory(client);
+    const takenBy = directory.find((i) => i.id === next.takenByInstructorId);
+    if (!takenBy) throw new ValidationError('Select who took this interaction.');
+
+    await client.query(
+      `UPDATE interactions SET date = $2, instructor_name = $3, taken_by_instructor_id = $4, topics = $5,
+         status_post_interaction = $6, rating = $7, questions_asked = $8, remarks = $9, performed_well = $10,
+         improvement_areas = $11, tweaked_questions = $12, action_items = $13, meet_recording = $14,
+         updated_at = now(), updated_by = $15
+       WHERE id = $1`,
+      [
+        id, next.date, takenBy.name, takenBy.id, next.topics || '', next.statusPostInteraction, Number(next.rating),
+        next.questionsAsked || '', next.remarks || '', next.performedWell || '', next.improvementAreas || '',
+        next.tweakedQuestions || '', next.actionItems || '', next.meetRecording || '', actor.id,
+      ]
+    );
+  } finally {
+    client.release();
+  }
+  // The student's status is derived from their interactions, so re-read it too.
+  return { student: (await getStudent(current.studentId))!, interaction: (await getInteraction(id))! };
+}
+
+export async function addInteraction(log: InteractionLog, actor: InstructorUser): Promise<{ student: Student; interaction: InteractionLog }> {
+  validateInteractionFields(log);
 
   const client = await getPool().connect();
   try {
