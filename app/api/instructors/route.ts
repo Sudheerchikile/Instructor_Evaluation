@@ -1,8 +1,24 @@
 import { NextRequest } from 'next/server';
-import { getInstructorList } from '@/db/queries';
+import { createInstructor, getInstructorList } from '@/db/queries';
+import { NewInstructorInput } from '@/lib/types';
 import { withUser } from '../_lib/respond';
 
 // Full instructor details with their assigned students. Admin only.
 export async function GET(request: NextRequest) {
   return withUser(request, async () => Response.json(await getInstructorList()), ['admin']);
+}
+
+// Add an instructor (login + assigned students). Admin only.
+export async function POST(request: NextRequest) {
+  return withUser(request, async () => {
+    const body = (await request.json().catch(() => ({}))) as Partial<NewInstructorInput>;
+    const result = await createInstructor({
+      name: String(body.name ?? ''),
+      firstName: String(body.firstName ?? ''),
+      email: String(body.email ?? ''),
+      password: String(body.password ?? ''),
+      studentIds: Array.isArray(body.studentIds) ? body.studentIds.map(String) : [],
+    });
+    return Response.json(result, { status: 201 });
+  }, ['admin']);
 }

@@ -123,10 +123,15 @@ export function PostInteractionModal({
               <input
                 type="date"
                 required
+                max={todayLocal()}
                 value={interactionDate}
                 onChange={(e) => setInteractionDate(e.target.value)}
-                className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                // Open the calendar from anywhere in the box, not only the small icon (where supported).
+                onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* not supported */ } }}
+                // color-scheme makes the browser draw a light calendar icon and popup in dark mode.
+                className="h-8 w-full cursor-pointer rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 [color-scheme:light] focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
               />
+              <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">The day the interaction took place (defaults to today).</p>
             </div>
 
             <div>

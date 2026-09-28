@@ -4,8 +4,9 @@ import { getPool, loadEnvForScripts } from './client';
 import { hashPassword } from './auth';
 
 // Loads login accounts from db/users.local.csv (git-ignored) into the users table.
-//   npm run db:users
-// The CSV is the complete list of people who can sign in: accounts not in the file are removed.
+//   npm run db:users            -> add/update the accounts in the file (others are left alone)
+//   npm run db:users -- --prune -> also delete accounts that are not in the file
+// Accounts created in the app (admin "Add instructor") are not in the file, so only prune deliberately.
 // Columns: email,password,role,name   (role = admin | instructor; name is only needed for admins —
 // instructors get their full name from the instructor directory by email.)
 
@@ -92,7 +93,10 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const removed = await client.query<{ email: string }>('DELETE FROM users WHERE NOT (email = ANY($1::text[])) RETURNING email', [accounts.map((a) => a.email)]);
+    const prune = process.argv.includes('--prune');
+    const removed = prune
+      ? await client.query<{ email: string }>('DELETE FROM users WHERE NOT (email = ANY($1::text[])) RETURNING email', [accounts.map((a) => a.email)])
+      : { rowCount: 0, rows: [] as { email: string }[] };
     for (const a of accounts) {
       await client.query(
         `INSERT INTO users (id, instructor_id, name, email, role, password_hash)

@@ -11,8 +11,8 @@ import { getPool, loadEnvForScripts } from './client';
 // come from instructors logging them in the app (lib/data/initialInteractions.json is reference only).
 //   npm run db:report  -> matching report only, no database needed
 //   npm run db:seed    -> report + import
-// Re-running is safe: instructors are upserted, students only get their instructor mapping
-// refreshed (level/topic/step progress is kept), and interactions are never touched.
+// Re-running is safe: instructors are upserted, new students are added, existing students keep their
+// instructor (only unmatched ones are re-mapped) and progress, and interactions are never touched.
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -124,7 +124,9 @@ async function importData() {
       `INSERT INTO students (id, name, degree, section, hall, instructor_raw, instructor_id, instructor_match, level, current_topic, current_step, status)
        SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::smallint[], $10::text[], $11::text[], $12::text[])
        ON CONFLICT (id) DO UPDATE SET instructor_raw = EXCLUDED.instructor_raw, instructor_id = EXCLUDED.instructor_id,
-         instructor_match = EXCLUDED.instructor_match, updated_at = now()`,
+         instructor_match = EXCLUDED.instructor_match, updated_at = now()
+       -- Never overwrite an assignment made in the app (e.g. by "Add instructor"); only fill unmatched ones.
+       WHERE students.instructor_match <> 'matched'`,
       [
         students.map((s) => s.id),
         students.map((s) => s.name),

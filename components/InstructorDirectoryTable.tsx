@@ -1,20 +1,37 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
-import { InstructorListEntry } from '@/lib/types';
+import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Search, UserPlus, X } from 'lucide-react';
+import { CreateInstructorResult, InstructorListEntry, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
+import { AddInstructorForm } from '@/components/AddInstructorForm';
+
+interface InstructorDirectoryTableProps {
+  students: Student[];     // all students, for the Add instructor preview
+  onChanged?: () => void;  // lets the page reload students after an assignment change
+}
 
 // Admin-only Instructor List: full names, contact details and each instructor's assigned students.
-export function InstructorDirectoryTable() {
+export function InstructorDirectoryTable({ students, onChanged }: InstructorDirectoryTableProps) {
   const [instructors, setInstructors] = useState<InstructorListEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [created, setCreated] = useState<CreateInstructorResult | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     fetchInstructors().then(setInstructors).catch((err: Error) => setError(err.message));
-  }, []);
+  }, [reloadKey]);
+
+  const handleCreated = (result: CreateInstructorResult) => {
+    setShowAdd(false);
+    setCreated(result);
+    setExpanded(result.instructor.id);
+    setReloadKey((k) => k + 1);
+    onChanged?.();
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -40,10 +57,44 @@ export function InstructorDirectoryTable() {
             className="h-8 w-full rounded-md border border-zinc-200 bg-white pl-8 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
           />
         </div>
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-          <span className="font-mono">{instructors.length}</span> instructors · <span className="font-mono">{totalStudents}</span> students
+        <div className="flex items-center gap-2">
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+            <span className="font-mono">{instructors.length}</span> instructors · <span className="font-mono">{totalStudents}</span> students
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white cursor-pointer"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Add instructor
+          </button>
         </div>
       </div>
+
+      {created && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <div className="flex gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-medium">
+                {created.instructor.name} ({created.instructor.id}) can now sign in with {created.instructor.email}.
+              </div>
+              <div className="mt-0.5">
+                {created.assigned.length} student{created.assigned.length === 1 ? '' : 's'} assigned
+                {(() => {
+                  const moved = new Map<string, number>();
+                  created.assigned.forEach((a) => { if (a.previousInstructor) moved.set(a.previousInstructor, (moved.get(a.previousInstructor) ?? 0) + 1); });
+                  return moved.size ? ` (moved from ${[...moved.entries()].map(([n, c]) => `${n}: ${c}`).join(', ')})` : '';
+                })()}.
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => setCreated(null)} title="Dismiss" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
+      {showAdd && <AddInstructorForm students={students} onClose={() => setShowAdd(false)} onCreated={handleCreated} />}
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <table className="w-full text-left text-xs">

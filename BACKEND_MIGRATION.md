@@ -384,6 +384,18 @@ Because the data lives separately in each browser (§1), there is no single curr
     - The save button now reads "Save Interaction".
     - Tested: a Gaurav-26 login recording a session taken by Gaurav-25 was stored as INS010. The test row was deleted.
 
+20. **Sign-in lasts 12 hours** (`SESSION_MAX_AGE_SECONDS` in `lib/sessionCookie.ts`). It's fixed and not extended by activity. Sessions that already existed were capped to 12 hours from when they were created.
+21. **Admins can add instructors in the app.** Instructors page → "Add instructor" (`components/AddInstructorForm.tsx`, `POST /api/instructors`, admin only).
+    - Fields: full name, Student List name (must be unique), email/login, password (at least 8 characters), and roll numbers (pasted separated by commas, spaces or new lines).
+    - A live preview shows how many students will be assigned and from whom.
+    - One transaction (`createInstructor` in `db/queries.ts`) does it all: create the instructor with the next `INS###` id, create a hashed login, and move the listed students to them. Each student leaves their previous instructor, so every count updates. It is rejected with nothing changed if the email is taken, the display name is taken, a roll number is unknown, or the password is too short.
+    - **Instructors created in the app exist only in the DB**, not in `instructors.json`.
+    - Safety changes to the scripts:
+      - `db:seed` no longer overwrites an existing matched assignment; it only fills unmatched students.
+      - `db:users` no longer deletes accounts missing from the CSV. Use `npm run db:users -- --prune` to delete them deliberately.
+    - Tested end to end with a temporary instructor, since removed: validations, a 403 for non-admins, counts 37→35 / 0→2, the new login seeing and editing its students, and the old instructor being blocked from the moved students.
+    - Only existing roll numbers can be assigned. Adding brand-new students is a separate, future feature.
+
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
 - Instructors can still read the full Directory, Analytics and Logs (the earlier rule). Hide these if instructors should see only their own students.

@@ -1,9 +1,10 @@
 import type { PoolClient } from 'pg';
 import { getPool } from './client';
-import { InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, Student, StudentListEntry } from '../lib/types';
+import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, getDefaultTopicForLevel, getStepOptionsForTopic, getTopicOptions } from '../lib/multiLevelCurriculum';
-import { statusAfterInteraction } from '../lib/storage';
+import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
+import { hashPassword } from './auth';
 
 // Data access for the API routes. Output field names match lib/types.ts.
 
@@ -182,6 +183,10 @@ export async function insertInteraction(
 // Saves an interaction and updates the student's status in one transaction.
 export async function addInteraction(log: InteractionLog, actor: InstructorUser): Promise<{ student: Student; interaction: InteractionLog }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date || '')) throw new ValidationError('Interaction date must be YYYY-MM-DD.');
+  // No future-dated interactions. The server runs in UTC; +14h covers every user timezone's "today".
+  if (log.date > new Date(Date.now() + 14 * 3600 * 1000).toISOString().slice(0, 10)) {
+    throw new ValidationError('Interaction date cannot be in the future.');
+  }
   if (!(Number(log.rating) >= 0 && Number(log.rating) <= 5)) throw new ValidationError('Rating must be between 0 and 5.');
 
   const client = await getPool().connect();
@@ -259,6 +264,85 @@ interface InstructorRow {
 }
 
 // Instructor List: full names, each with their assigned students.
+export const MIN_PASSWORD_LENGTH = 8;
+
+// Admin: create an instructor + login and assign students, all in one transaction. Assigning moves a
+// student from whoever had them (a student has exactly one instructor), so every count updates.
+export async function createInstructor(input: NewInstructorInput): Promise<CreateInstructorResult> {
+  const name = (input.name || '').trim().replace(/\s+/g, ' ');
+  const firstName = (input.firstName || '').trim().replace(/\s+/g, ' ');
+  const email = (input.email || '').trim().toLowerCase();
+  const password = input.password || '';
+  const studentIds = Array.from(new Set((input.studentIds || []).map((id) => String(id).trim().toUpperCase()).filter(Boolean)));
+
+  if (name.length < 2) throw new ValidationError("Enter the instructor's full name.");
+  if (!firstName) throw new ValidationError('Enter the name to show in the Student List.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ValidationError('Enter a valid email address.');
+  if (password.length < MIN_PASSWORD_LENGTH) throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    // Serialise instructor creation so two admins can't take the same new id.
+    await client.query('LOCK TABLE instructors IN SHARE ROW EXCLUSIVE MODE');
+
+    const clash = await client.query<{ email: string }>(
+      'SELECT email FROM instructors WHERE email = $1 UNION SELECT email FROM users WHERE email = $1',
+      [email]
+    );
+    if (clash.rowCount) throw new ValidationError(`${email} is already used by another account.`);
+
+    const directory = await loadDirectory(client);
+    const sameName = directory.find((i) => normalizeInstructorName(i.firstName) === normalizeInstructorName(firstName));
+    if (sameName) {
+      throw new ValidationError(`"${firstName}" is already shown for ${sameName.name}. Use a distinct Student List name (e.g. "${firstName}-2").`);
+    }
+
+    const found = await client.query<{ id: string; name: string; previous: string | null }>(
+      `SELECT s.id, s.name, i.full_name AS previous
+       FROM students s LEFT JOIN instructors i ON i.id = s.instructor_id
+       WHERE s.id = ANY($1::text[])`,
+      [studentIds]
+    );
+    const missing = studentIds.filter((id) => !found.rows.some((r) => r.id === id));
+    if (missing.length) throw new ValidationError(`These roll numbers are not in the database: ${missing.join(', ')}`);
+
+    const { rows: [{ next }] } = await client.query<{ next: number }>(
+      "SELECT COALESCE(MAX(substring(id from '^INS([0-9]+)$')::int), 0) + 1 AS next FROM instructors"
+    );
+    const id = `INS${String(next).padStart(3, '0')}`;
+
+    await client.query(
+      "INSERT INTO instructors (id, first_name, full_name, email, aliases) VALUES ($1, $2, $3, $4, '{}')",
+      [id, firstName, name, email]
+    );
+    await client.query(
+      "INSERT INTO users (id, instructor_id, name, email, role, password_hash) VALUES ($1, $1, $2, $3, 'instructor', $4)",
+      [id, name, email, await hashPassword(password)]
+    );
+    if (studentIds.length) {
+      await client.query(
+        `UPDATE students SET instructor_id = $1, instructor_match = 'matched', instructor_raw = $2, updated_at = now()
+         WHERE id = ANY($3::text[])`,
+        [id, firstName, studentIds]
+      );
+    }
+    await client.query('COMMIT');
+
+    return {
+      instructor: { id, name, firstName, email },
+      assigned: found.rows
+        .map((r) => ({ id: r.id, name: r.name, previousInstructor: r.previous }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Names and ids only, for the "Interaction Taken By" dropdown (any signed-in user).
 export async function getInstructorOptions(): Promise<InstructorOption[]> {
   const { rows } = await getPool().query<{ id: string; first_name: string; full_name: string }>(

@@ -69,6 +69,20 @@ export interface InstructorOption {
   firstName: string; // name shown in the Student List, e.g. "Gaurav-26"
 }
 
+// Admin "Add instructor" form.
+export interface NewInstructorInput {
+  name: string;         // full name
+  firstName: string;    // name shown in the Student List (must be unique)
+  email: string;        // company email, also the login
+  password: string;
+  studentIds: string[]; // roll numbers to assign (moved from their current instructor)
+}
+
+export interface CreateInstructorResult {
+  instructor: InstructorOption & { email: string };
+  assigned: Array<{ id: string; name: string; previousInstructor: string | null }>;
+}
+
 // API shape: Instructor List entry, using the instructor's full name.
 export interface InstructorListEntry {
   id: string;
