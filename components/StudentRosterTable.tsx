@@ -244,8 +244,8 @@ export function StudentRosterTable({
                 {/* Assigned page lists only the signed-in instructor's students, so the column is Directory-only. */}
                 {isAllDirectory && <th className="py-2.5 px-3">Assigned Evaluator</th>}
                 <th className="py-2.5 px-3">Level</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">Current Step</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">Current Topic</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Current Step</th>
                 <th className="py-2.5 px-3">Status</th>
                 <th className="py-2.5 pl-3 pr-4 text-right">Feedback</th>
               </tr>
@@ -327,25 +327,6 @@ export function StudentRosterTable({
                       )}
                     </td>
 
-                    {/* Current Step */}
-                    <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
-                      {!isAllDirectory ? (
-                        <select
-                          value={safeStepValue}
-                          onChange={(e) => onUpdateStudentStep?.(student.id, e.target.value)}
-                          className="h-8 w-40 max-w-40 truncate rounded-md border border-zinc-200 bg-white px-2 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                        >
-                          {stepOptions.map((step) => (
-                            <option key={step} value={step}>{step}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-[11px] leading-relaxed">
-                          {safeStepValue}
-                        </span>
-                      )}
-                    </td>
-
                     {/* Current Topic */}
                     <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
                       {!isAllDirectory ? (
@@ -361,6 +342,25 @@ export function StudentRosterTable({
                       ) : (
                         <span className="text-[11px] leading-relaxed">
                           {safeTopicValue}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Current Step */}
+                    <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
+                      {!isAllDirectory ? (
+                        <select
+                          value={safeStepValue}
+                          onChange={(e) => onUpdateStudentStep?.(student.id, e.target.value)}
+                          className="h-8 w-40 max-w-40 truncate rounded-md border border-zinc-200 bg-white px-2 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                        >
+                          {stepOptions.map((step) => (
+                            <option key={step} value={step}>{step}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[11px] leading-relaxed">
+                          {safeStepValue}
                         </span>
                       )}
                     </td>
