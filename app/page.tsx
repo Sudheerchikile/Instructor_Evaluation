@@ -8,7 +8,7 @@ import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/l
 import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
-import { localDateOf, todayLocal } from "@/lib/dates";
+import { todayLocal } from "@/lib/dates";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
 import { PostInteractionModal } from "@/components/PostInteractionModal";
 import { StudentHistoryModal } from "@/components/StudentHistoryModal";
@@ -159,10 +159,11 @@ export default function Home() {
   };
   const handleExportCSV = () => exportInteractionsToCSV(interactions);
 
-  // "Today's Interactions" page only: every instructor's interactions dated today or logged today.
+  // "Today's Interactions" page only: every instructor's interactions TAKEN today (interaction date).
+  // One taken earlier but logged today is back-dated, so it appears only in the student's history.
   const todaysLogs = useMemo(() => {
     const today = todayLocal();
-    return interactions.filter((log) => log.date === today || localDateOf(log.createdAt) === today);
+    return interactions.filter((log) => log.date === today);
   }, [interactions]);
 
   if (!authChecked || !currentUser || (!dataLoaded && !dataError)) {

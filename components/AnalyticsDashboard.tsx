@@ -193,7 +193,7 @@ export function AnalyticsDashboard({
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400"><CalendarRange className="h-3.5 w-3.5" />Interactions Taken</div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 font-mono">{interactionsToday}</div>
-          <div className="mt-2 text-[11px] text-zinc-500">Total interactions logged today</div>
+          <div className="mt-2 text-[11px] text-zinc-500">Total interactions taken today</div>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400"><CheckCircle2 className="h-3.5 w-3.5" />Successful Completion</div>

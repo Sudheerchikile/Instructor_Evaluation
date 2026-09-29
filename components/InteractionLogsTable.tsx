@@ -180,7 +180,7 @@ export function InteractionLogsTable({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-xs text-zinc-500">
-                    {interactions.length === 0 ? 'No interactions logged today yet.' : 'No matching logs found.'}
+                    {interactions.length === 0 ? 'No interactions taken today yet.' : 'No matching logs found.'}
                   </td>
                 </tr>
               )}
