@@ -19,7 +19,7 @@ export const BASE_STEP_SEQUENCE = [...STEPS_UP_TO_MEDIUM, '4.1 hard standard que
 
 export const LEVEL_TOPIC_MAP: Record<string, string[]> = {
   'Level 0': LEVEL_0_ITEMS,
-  'Level 1': ['Maths', 'STL - Introduction', 'STL - Standard Template Library', 'Array - Basics', 'Arrays', 'String'],
+  'Level 1': ['Maths', 'STL', 'Array - Basics', 'Arrays', 'String'],
   'Level 2': ['Recursion - Basics', 'Sorting', 'Binary Search'],
   'Level 3': ['Two pointers / Sliding window', 'Greedy Algorithms'],
   'Level 4': ['Bit Manipulation', 'Stack & Queues', 'Stack - Monotonic Stack'],

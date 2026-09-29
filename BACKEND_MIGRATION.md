@@ -136,7 +136,7 @@ So the backend isn't only a storage change. It is what makes the app multi-user 
 | Level | Topics | Steps |
 |---|---|---|
 | Level 0 | Introduction, Data Types, If else, Loops, Traversal, Time & Space Complexity analysis, Pattern Questions | The same 7 items as the topics |
-| Level 1 | Maths, STL - Introduction, STL - Standard Template Library, Array - Basics, Arrays, String | 7 steps (1.1 → 3.2) |
+| Level 1 | Maths, STL, Array - Basics, Arrays, String | 7 steps (1.1 → 3.2) |
 | Level 2 | **Recursion - Basics**, Sorting, Binary Search | 9 steps (1.1 → 4.2) |
 | Level 3 | Two pointers / Sliding window, Greedy Algorithms | 9 steps |
 | Level 4 | Bit Manipulation, Stack & Queues, Stack - Monotonic Stack | 9 steps |
@@ -405,6 +405,10 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Where to edit: **Inspect → Edit interaction** on Today's Interactions, or **Edit** on each entry in a student's history. Both open the same form (`PostInteractionModal` with `editing`), pre-filled.
     - Because student status is derived, an edited status updates the student and every count immediately.
 23. **Today's Interactions** now has separate **Assigned Instructor** and **Taken By** columns. **Inspect** shows every field: assigned / taken by, date, status, rating, level and step when logged, topics, questions, remarks, performed well, improvement areas, tweaked questions, action items and the meet recording. Empty ones show "Not filled".
+24. **Topics in the interaction form is a multi-select dropdown** (`components/TopicMultiPicker.tsx`), not free text.
+    - It lists that level's topics from `getTopicOptions` (the student's current level for a new log, the logged level when editing). It's searchable, at least one topic is required, and selected topics show as removable chips.
+    - Still stored as one string, joined with `", "` (e.g. `Data Types, Loops`), so there's no DB, API or CSV change. When editing an older free-text log, its text is split on commas and kept as chips.
+25. **Duplicate STL topic removed from Level 1.** `STL - Introduction` and `STL - Standard Template Library` were the same topic; they are now one topic named `STL`. Checked on 2026-09-29: no student or interaction used either value, so no data migration was needed.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

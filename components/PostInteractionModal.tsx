@@ -6,6 +6,12 @@ import { todayLocal } from '@/lib/dates';
 import { blockKeyboardSubmit } from '@/lib/forms';
 import { X, Save } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
+import { TopicMultiPicker } from '@/components/TopicMultiPicker';
+import { getTopicOptions } from '@/lib/multiLevelCurriculum';
+
+// Topics are stored as one comma-separated string (the DB column and CSV export stay unchanged).
+const TOPIC_SEPARATOR = ', ';
+const splitTopics = (value: string | undefined) => (value ?? '').split(',').map((t) => t.trim()).filter(Boolean);
 
 interface PostInteractionModalProps {
   isOpen: boolean;
@@ -42,7 +48,8 @@ export function PostInteractionModal({
   // New logs default to the signed-in instructor; may be changed to the colleague who took the session.
   const [takenById, setTakenById] = useState<string | null>(editing ? editing.takenByInstructorId ?? null : currentInstructorId ?? null);
   const [takenByError, setTakenByError] = useState(false);
-  const [topics, setTopics] = useState(editing?.topics ?? '');
+  const [topics, setTopics] = useState<string[]>(() => splitTopics(editing?.topics));
+  const [topicsError, setTopicsError] = useState(false);
   const [statusPostInteraction, setStatusPostInteraction] = useState<'Need to Revisit' | 'Cleared' | 'In Progress'>(() => {
     const saved = editing?.statusPostInteraction;
     return saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit';
@@ -60,13 +67,15 @@ export function PostInteractionModal({
 
   if (!isOpen || !student) return null;
 
+  // An edit offers the topics of the level the interaction was logged at.
+  const topicOptions = getTopicOptions((editing ? editing.level : student.level) ?? student.level);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const takenBy = instructorOptions.find((o) => o.id === takenById);
-    if (!takenBy) {
-      setTakenByError(true);
-      return;
-    }
+    if (!takenBy) setTakenByError(true);
+    if (topics.length === 0) setTopicsError(true);
+    if (!takenBy || topics.length === 0) return;
 
     const log: InteractionLog = {
       ...(editing ?? {}),
@@ -76,7 +85,7 @@ export function PostInteractionModal({
       instructorName: takenBy.name,
       takenByInstructorId: takenBy.id,
       assignedInstructorName,
-      topics,
+      topics: topics.join(TOPIC_SEPARATOR),
       statusPostInteraction,
       rating,
       questionsAsked,
@@ -191,14 +200,13 @@ export function PostInteractionModal({
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 Topics <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                required
+              <TopicMultiPicker
+                options={topicOptions}
                 value={topics}
-                onChange={(e) => setTopics(e.target.value)}
-                placeholder="e.g. 1.1 Data Types"
-                className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                invalid={topicsError}
+                onChange={(next) => { setTopics(next); if (next.length) setTopicsError(false); }}
               />
+              {topicsError && <p className="mt-1 text-[11px] text-rose-500">Select at least one topic.</p>}
             </div>
           </div>
 
