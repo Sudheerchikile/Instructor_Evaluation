@@ -9,6 +9,7 @@ import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, 
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
 import { todayLocal } from "@/lib/dates";
+import { clearInteractionDraft, interactionDraftKey } from "@/lib/interactionDraft";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
 import { PostInteractionModal } from "@/components/PostInteractionModal";
 import { StudentHistoryModal } from "@/components/StudentHistoryModal";
@@ -112,23 +113,28 @@ export default function Home() {
   const closeInteractionForm = () => { setPostInteractionStudent(null); setPostInteractionDraft(null); setEditingLog(null); };
   const replaceStudent = (updated: Student) => setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
 
+  // The form's draft is cleared only once the server confirms; on failure it stays, so reopening restores it.
   const handleSaveInteraction = (newLog: InteractionLog) => {
     setDataError(null);
+    const draftKey = currentUser ? interactionDraftKey(currentUser.id, { studentId: newLog.studentId, editingId: editingLog?.id }) : null;
+    const keptNote = 'Your entries are kept: open the form again to retry.';
     if (editingLog) {
       updateInteraction(editingLog.id, newLog)
         .then(({ student, interaction }) => {
+          if (draftKey) clearInteractionDraft(draftKey);
           replaceStudent(student);
           setInteractions((prev) => prev.map((l) => (l.id === interaction.id ? interaction : l)));
         })
-        .catch((err: Error) => setDataError(`Changes for ${newLog.studentName} were not saved: ${err.message}`));
+        .catch((err: Error) => setDataError(`Changes for ${newLog.studentName} were not saved: ${err.message} ${keptNote}`));
       return;
     }
     createInteraction(newLog)
       .then(({ student, interaction }) => {
+        if (draftKey) clearInteractionDraft(draftKey);
         replaceStudent(student);
         setInteractions((prev) => [interaction, ...prev]);
       })
-      .catch((err: Error) => setDataError(`Interaction for ${newLog.studentName} was not saved: ${err.message}`));
+      .catch((err: Error) => setDataError(`Interaction for ${newLog.studentName} was not saved: ${err.message} ${keptNote}`));
   };
 
   // Optimistic update: the change shows at once in "My Students" and the directory, then is saved to the DB.
@@ -230,7 +236,7 @@ export default function Home() {
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       {postInteractionStudent && (
-        <PostInteractionModal key={editingLog?.id ?? postInteractionStudent.id} isOpen onClose={closeInteractionForm} editing={editingLog} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
+        <PostInteractionModal key={editingLog?.id ?? postInteractionStudent.id} isOpen onClose={closeInteractionForm} editing={editingLog} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} draftOwnerId={currentUser.id} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
       )}
       <StudentHistoryModal
         isOpen={!!historyStudent}

@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Student, InteractionLog, InstructorOption } from '@/lib/types';
 import { todayLocal } from '@/lib/dates';
 import { blockKeyboardSubmit } from '@/lib/forms';
-import { X, Save } from 'lucide-react';
+import {
+  InteractionDraftFields, clearInteractionDraft, interactionDraftKey, loadInteractionDraft, saveInteractionDraft,
+} from '@/lib/interactionDraft';
+import { X, Save, RotateCcw } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
 import { TopicMultiPicker } from '@/components/TopicMultiPicker';
 import { getTopicOptions } from '@/lib/multiLevelCurriculum';
@@ -18,6 +21,7 @@ interface PostInteractionModalProps {
   onClose: () => void;
   student: Student | null;
   currentInstructorId?: string | null;
+  draftOwnerId?: string | null; // signed-in user id; unsaved entries are kept as a draft under it
   instructorOptions: InstructorOption[];
   initialDraft?: {
     round: number;
@@ -35,33 +39,84 @@ export function PostInteractionModal({
   onClose,
   student,
   currentInstructorId,
+  draftOwnerId,
   instructorOptions,
   initialDraft,
   onSave,
   editing = null
 }: PostInteractionModalProps) {
-  // Student and assigned instructor come from the selected student; the date defaults to today but stays editable.
+  // Student and assigned instructor come from the selected student. The date starts empty on a new log so
+  // the instructor must pick the day the session actually happened (a today default was often left unchanged).
   // When editing, every field starts from the saved interaction.
-  const [interactionDate, setInteractionDate] = useState(() => editing?.date ?? todayLocal());
+  const [defaults] = useState<InteractionDraftFields>(() => {
+    const saved = editing?.statusPostInteraction;
+    return {
+      interactionDate: editing?.date ?? '',
+      // New logs default to the signed-in instructor; may be changed to the colleague who took the session.
+      takenById: editing ? editing.takenByInstructorId ?? null : currentInstructorId ?? null,
+      topics: splitTopics(editing?.topics),
+      statusPostInteraction: saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit',
+      rating: editing ? Number(editing.rating) : 0,
+      questionsAsked: editing?.questionsAsked ?? '',
+      remarks: editing?.remarks ?? '',
+      performedWell: editing?.performedWell ?? '',
+      improvementAreas: editing?.improvementAreas ?? '',
+      tweakedQuestions: editing?.tweakedQuestions ?? '',
+      actionItems: editing?.actionItems ?? '',
+      meetRecording: editing?.meetRecording ?? '',
+    };
+  });
+  // Unsaved entries from an earlier open of this same form (reload, lost connection, closed by mistake).
+  const draftKey = student && draftOwnerId ? interactionDraftKey(draftOwnerId, { studentId: student.id, editingId: editing?.id }) : null;
+  const [restored, setRestored] = useState(() => (draftKey ? loadInteractionDraft(draftKey) : null));
+  const initial = restored?.fields ?? defaults;
+
+  const [interactionDate, setInteractionDate] = useState(initial.interactionDate);
+  const [dateError, setDateError] = useState(false);
   const studentName = editing?.studentName ?? student?.name ?? '';
   const assignedInstructorName = editing?.assignedInstructorName || student?.instructorFullName || student?.instructor || '';
-  // New logs default to the signed-in instructor; may be changed to the colleague who took the session.
-  const [takenById, setTakenById] = useState<string | null>(editing ? editing.takenByInstructorId ?? null : currentInstructorId ?? null);
+  const [takenById, setTakenById] = useState<string | null>(initial.takenById);
   const [takenByError, setTakenByError] = useState(false);
-  const [topics, setTopics] = useState<string[]>(() => splitTopics(editing?.topics));
+  const [topics, setTopics] = useState<string[]>(initial.topics);
   const [topicsError, setTopicsError] = useState(false);
-  const [statusPostInteraction, setStatusPostInteraction] = useState<'Need to Revisit' | 'Cleared' | 'In Progress'>(() => {
-    const saved = editing?.statusPostInteraction;
-    return saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit';
-  });
-  const [rating, setRating] = useState<number>(editing ? Number(editing.rating) : 0);
-  const [questionsAsked, setQuestionsAsked] = useState<string>(editing?.questionsAsked ?? '');
-  const [remarks, setRemarks] = useState<string>(editing?.remarks ?? '');
-  const [performedWell, setPerformedWell] = useState<string>(editing?.performedWell ?? '');
-  const [improvementAreas, setImprovementAreas] = useState<string>(editing?.improvementAreas ?? '');
-  const [tweakedQuestions, setTweakedQuestions] = useState<string>(editing?.tweakedQuestions ?? '');
-  const [actionItems, setActionItems] = useState<string>(editing?.actionItems ?? '');
-  const [meetRecording, setMeetRecording] = useState<string>(editing?.meetRecording ?? '');
+  const [statusPostInteraction, setStatusPostInteraction] = useState<InteractionDraftFields['statusPostInteraction']>(initial.statusPostInteraction);
+  const [rating, setRating] = useState<number>(initial.rating);
+  const [questionsAsked, setQuestionsAsked] = useState<string>(initial.questionsAsked);
+  const [remarks, setRemarks] = useState<string>(initial.remarks);
+  const [performedWell, setPerformedWell] = useState<string>(initial.performedWell);
+  const [improvementAreas, setImprovementAreas] = useState<string>(initial.improvementAreas);
+  const [tweakedQuestions, setTweakedQuestions] = useState<string>(initial.tweakedQuestions);
+  const [actionItems, setActionItems] = useState<string>(initial.actionItems);
+  const [meetRecording, setMeetRecording] = useState<string>(initial.meetRecording);
+
+  // Keep the draft in step with every change; a form still equal to its starting values stores nothing.
+  const fields: InteractionDraftFields = {
+    interactionDate, takenById, topics, statusPostInteraction, rating, questionsAsked, remarks,
+    performedWell, improvementAreas, tweakedQuestions, actionItems, meetRecording,
+  };
+  const fieldsJson = JSON.stringify(fields);
+  useEffect(() => {
+    if (!draftKey) return;
+    if (fieldsJson === JSON.stringify(defaults)) clearInteractionDraft(draftKey);
+    else saveInteractionDraft(draftKey, JSON.parse(fieldsJson));
+  }, [draftKey, fieldsJson, defaults]);
+
+  const discardDraft = () => {
+    setInteractionDate(defaults.interactionDate);
+    setTakenById(defaults.takenById);
+    setTopics(defaults.topics);
+    setStatusPostInteraction(defaults.statusPostInteraction);
+    setRating(defaults.rating);
+    setQuestionsAsked(defaults.questionsAsked);
+    setRemarks(defaults.remarks);
+    setPerformedWell(defaults.performedWell);
+    setImprovementAreas(defaults.improvementAreas);
+    setTweakedQuestions(defaults.tweakedQuestions);
+    setActionItems(defaults.actionItems);
+    setMeetRecording(defaults.meetRecording);
+    setRestored(null);
+    if (draftKey) clearInteractionDraft(draftKey);
+  };
 
   const [interactionRound] = useState(initialDraft?.round || 1);
 
@@ -73,9 +128,10 @@ export function PostInteractionModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const takenBy = instructorOptions.find((o) => o.id === takenById);
+    if (!interactionDate) setDateError(true);
     if (!takenBy) setTakenByError(true);
     if (topics.length === 0) setTopicsError(true);
-    if (!takenBy || topics.length === 0) return;
+    if (!interactionDate || !takenBy || topics.length === 0) return;
 
     const log: InteractionLog = {
       ...(editing ?? {}),
@@ -100,7 +156,7 @@ export function PostInteractionModal({
       // An edit keeps the level/step snapshot and creation time of the original log.
       level: editing ? editing.level : student.level,
       currentStep: editing ? editing.currentStep : student.currentStep,
-      date: interactionDate || todayLocal(),
+      date: interactionDate,
       createdAt: editing?.createdAt ?? new Date().toISOString()
     };
 
@@ -133,6 +189,23 @@ export function PostInteractionModal({
 
         {/* Saved only by clicking the Save button: Enter/Space never submit this form. */}
         <form onSubmit={handleSubmit} onKeyDown={blockKeyboardSubmit} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto text-xs">
+          {restored && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300">
+              <span>
+                Restored your unsaved entries from{' '}
+                <strong className="font-medium">{new Date(restored.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</strong>.
+              </span>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="inline-flex shrink-0 items-center gap-1 font-medium hover:underline underline-offset-2 cursor-pointer"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {editing ? 'Discard changes' : 'Start over'}
+              </button>
+            </div>
+          )}
+
           {/* Form Fields: Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -144,13 +217,17 @@ export function PostInteractionModal({
                 required
                 max={todayLocal()}
                 value={interactionDate}
-                onChange={(e) => setInteractionDate(e.target.value)}
+                onChange={(e) => { setInteractionDate(e.target.value); if (e.target.value) setDateError(false); }}
                 // Open the calendar from anywhere in the box, not only the small icon (where supported).
                 onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* not supported */ } }}
                 // color-scheme makes the browser draw a light calendar icon and popup in dark mode.
-                className="h-8 w-full cursor-pointer rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 [color-scheme:light] focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]"
+                className={`h-8 w-full cursor-pointer rounded-md border bg-white px-3 text-xs text-zinc-900 [color-scheme:light] focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark] ${
+                  dateError ? 'border-rose-500' : 'border-zinc-200 dark:border-zinc-800'
+                }`}
               />
-              <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">The day the interaction took place (defaults to today).</p>
+              {dateError
+                ? <p className="mt-1 text-[11px] text-rose-500">Select the date the interaction took place.</p>
+                : <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Select the day the interaction actually took place.</p>}
             </div>
 
             <div>
