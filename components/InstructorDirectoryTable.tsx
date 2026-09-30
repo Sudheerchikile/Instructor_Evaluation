@@ -1,18 +1,21 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Search, UserPlus, X } from 'lucide-react';
-import { CreateInstructorResult, InstructorListEntry, Student } from '@/lib/types';
+import { CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Search, UserPlus, X } from 'lucide-react';
+import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
 import { AddInstructorForm } from '@/components/AddInstructorForm';
+import { InstructorHistoryModal } from '@/components/InstructorHistoryModal';
 
 interface InstructorDirectoryTableProps {
   students: Student[];     // all students, for the Add instructor preview
+  interactions: InteractionLog[]; // all interactions, for each instructor's history
   onChanged?: () => void;  // lets the page reload students after an assignment change
 }
 
 // Admin-only Instructor List: full names, contact details and each instructor's assigned students.
-export function InstructorDirectoryTable({ students, onChanged }: InstructorDirectoryTableProps) {
+export function InstructorDirectoryTable({ students, interactions, onChanged }: InstructorDirectoryTableProps) {
+  const [historyFor, setHistoryFor] = useState<InstructorListEntry | null>(null);
   const [instructors, setInstructors] = useState<InstructorListEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -104,7 +107,8 @@ export function InstructorDirectoryTable({ students, onChanged }: InstructorDire
               <th className="py-2.5 px-3">ID</th>
               <th className="py-2.5 px-3">Shown in Student List as</th>
               <th className="py-2.5 px-3">Company email</th>
-              <th className="py-2.5 pl-3 pr-4 text-right">Students</th>
+              <th className="py-2.5 px-3 text-right">Students</th>
+              <th className="py-2.5 pl-3 pr-4 text-right">History</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 text-zinc-700 dark:divide-zinc-800/60 dark:text-zinc-300">
@@ -122,11 +126,21 @@ export function InstructorDirectoryTable({ students, onChanged }: InstructorDire
                     <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.id}</td>
                     <td className="py-2.5 px-3">{inst.firstName}</td>
                     <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.email}</td>
-                    <td className="py-2.5 pl-3 pr-4 text-right font-mono">{inst.students.length}</td>
+                    <td className="py-2.5 px-3 text-right font-mono">{inst.students.length}</td>
+                    <td className="py-2.5 pl-3 pr-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setHistoryFor(inst); }}
+                        title={`Interactions taken by ${inst.name}`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={5} className="bg-zinc-50/60 px-4 py-3 dark:bg-zinc-950/40">
+                      <td colSpan={6} className="bg-zinc-50/60 px-4 py-3 dark:bg-zinc-950/40">
                         {inst.students.length === 0 ? (
                           <p className="text-zinc-500">No students assigned.</p>
                         ) : (
@@ -162,11 +176,13 @@ export function InstructorDirectoryTable({ students, onChanged }: InstructorDire
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={5} className="py-10 text-center text-zinc-500">No instructor matches your search.</td></tr>
+              <tr><td colSpan={6} className="py-10 text-center text-zinc-500">No instructor matches your search.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {historyFor && <InstructorHistoryModal instructor={historyFor} interactions={interactions} onClose={() => setHistoryFor(null)} />}
     </div>
   );
 }

@@ -223,7 +223,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Instructors</h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Every instructor with full name, company email and assigned students. Click a row to see their students.</p>
             </div>
-            <InstructorDirectoryTable students={students} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
+            <InstructorDirectoryTable students={students} interactions={interactions} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
           </div>
         )}
         {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} canEdit={canEditInteraction} onEdit={handleEditInteraction} />}

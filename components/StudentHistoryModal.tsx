@@ -35,7 +35,8 @@ interface StudentHistoryModalProps {
 // Dimmed-grey reading panel (low glare for long review sessions), deliberately different from the
 // near-black dashboard behind it. Palette: #1c2128 / #22272e / #2d333b surfaces, #373e47 borders.
 
-function StatusBadge({ status }: { status: string }) {
+// StatusBadge, Field and Stat are shared with InstructorHistoryModal.
+export function StatusBadge({ status }: { status: string }) {
   const dot = status.includes('Revisit') ? 'bg-amber-400' : status.includes('Cleared') ? 'bg-emerald-400' : 'bg-[#768390]';
   const label = status.includes('Revisit') ? 'Needs Revisit' : status;
   return (
@@ -55,7 +56,7 @@ const FIELD_TONES = {
   actions:     { edge: 'border-l-[#986ee2]', label: 'text-[#b083f0]', Icon: ListChecks },
 } as const;
 
-function Field({ label, tone, children, mono = false }: { label: string; tone: keyof typeof FIELD_TONES; children: React.ReactNode; mono?: boolean }) {
+export function Field({ label, tone, children, mono = false }: { label: string; tone: keyof typeof FIELD_TONES; children: React.ReactNode; mono?: boolean }) {
   const { edge, label: labelColor, Icon } = FIELD_TONES[tone];
   return (
     <div className={`rounded-md border border-[#373e47] border-l-[3px] ${edge} bg-[#22272e] px-3.5 py-3`}>
@@ -70,7 +71,7 @@ function Field({ label, tone, children, mono = false }: { label: string; tone: k
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="px-4 py-2.5">
       <div className="text-[11px] text-[#909dab]">{label}</div>
