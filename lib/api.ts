@@ -43,5 +43,8 @@ export const updateStudentProgress = (id: string, patch: { level?: string; curre
 export const updateInteraction = (id: string, patch: Partial<InteractionLog>) =>
   request<{ student: Student; interaction: InteractionLog }>(`/api/interactions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
+export const deleteInteraction = (id: string, reason: string) =>
+  request<{ student: Student }>(`/api/interactions/${encodeURIComponent(id)}`, { method: 'DELETE', body: JSON.stringify({ reason }) });
+
 export const createInteraction = (log: InteractionLog) =>
   request<{ student: Student; interaction: InteractionLog }>('/api/interactions', { method: 'POST', body: JSON.stringify(log) });

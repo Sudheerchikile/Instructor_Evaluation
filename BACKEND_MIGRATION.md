@@ -409,6 +409,11 @@ Because the data lives separately in each browser (§1), there is no single curr
     - It lists that level's topics from `getTopicOptions` (the student's current level for a new log, the logged level when editing). It's searchable, at least one topic is required, and selected topics show as removable chips.
     - Still stored as one string, joined with `", "` (e.g. `Data Types, Loops`), so there's no DB, API or CSV change. When editing an older free-text log, its text is split on commas and kept as chips.
 25. **Duplicate STL topic removed from Level 1.** `STL - Introduction` and `STL - Standard Template Library` were the same topic; they are now one topic named `STL`. Checked on 2026-09-29: no student or interaction used either value, so no data migration was needed.
+26. **Interactions can be deleted, with a required reason** (2026-10-01).
+    - Route: `DELETE /api/interactions/[id]` with `{ reason }` (`deleteInteraction` in `db/queries.ts`). Same permission as editing: the student's assigned instructor or whoever logged it; admins get 403. The reason must be 5–1000 characters.
+    - The row is **moved** to the new table `deleted_interactions` (`id`, `student_id`, `data` = full row as JSONB, `delete_reason`, `deleted_by` = user id, `deleted_at`) in one transaction. Every query, count and status reads `interactions`, so nothing else needed a filter, and older deployed builds also stop showing it.
+    - **Restoring** a mistaken delete: `INSERT INTO interactions SELECT * FROM jsonb_populate_record(NULL::interactions, (SELECT data FROM deleted_interactions WHERE id = '<id>'));` then `DELETE FROM deleted_interactions WHERE id = '<id>';`
+    - UI: **Delete** next to **Edit** in a student's history, and **Delete interaction** in Today's Interactions → Inspect. A dialog (`components/DeleteInteractionDialog.tsx`) asks "Delete this interaction?" and the reason; on success the log disappears and the student's status is recalculated.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

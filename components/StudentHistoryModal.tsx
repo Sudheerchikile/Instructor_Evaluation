@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
+  Trash2,
   HelpCircle,
   MessageSquare,
   ThumbsUp,
@@ -30,6 +31,7 @@ interface StudentHistoryModalProps {
   canLogInteraction?: boolean;
   canEdit?: (log: InteractionLog) => boolean;
   onEdit?: (log: InteractionLog) => void;
+  onDelete?: (log: InteractionLog) => void; // same permission as editing
 }
 
 // Dimmed-grey reading panel (low glare for long review sessions), deliberately different from the
@@ -88,7 +90,8 @@ export function StudentHistoryModal({
   onStartNewInteraction,
   canLogInteraction = false,
   canEdit = () => false,
-  onEdit
+  onEdit,
+  onDelete
 }: StudentHistoryModalProps) {
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<string, boolean>>({});
 
@@ -211,6 +214,17 @@ export function StudentHistoryModal({
                             >
                               <Pencil className="h-3 w-3" />
                               Edit
+                            </button>
+                          )}
+                          {onDelete && canEdit(log) && (
+                            <button
+                              type="button"
+                              onClick={() => onDelete(log)}
+                              title="Delete this interaction"
+                              className="inline-flex h-8 items-center gap-1 rounded-md border border-[#545d68] bg-[#373e47] px-2.5 text-[11px] font-medium text-[#f47067] hover:bg-[#444c56] transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Delete
                             </button>
                           )}
                           <div className="rounded-md bg-[#1c2128] px-2.5 py-1.5 text-center">

@@ -201,6 +201,48 @@ async function getInteraction(id: string): Promise<InteractionLog | null> {
   return rows[0]?.log ?? null;
 }
 
+// Editing or deleting an interaction: the student's assigned instructor or whoever logged it. Admins: 403.
+function assertCanChangeInteraction(log: InteractionLog, student: Student, actor: InstructorUser, action: 'edit' | 'delete') {
+  const isAssigned = actor.role === 'instructor' && !!actor.instructorId && student.instructorId === actor.instructorId;
+  const isAuthor = actor.role === 'instructor' && log.createdBy === actor.id;
+  if (!isAssigned && !isAuthor) {
+    throw new ForbiddenError(`Only the assigned instructor or the person who logged this interaction can ${action} it.`);
+  }
+}
+
+// Delete an interaction (duplicate or wrong details). The row moves to deleted_interactions together with
+// the reason, who deleted it and when; the student's status and counts follow because they are derived.
+export async function deleteInteraction(id: string, reason: string, actor: InstructorUser): Promise<{ student: Student }> {
+  const why = (reason ?? '').trim();
+  if (why.length < 5) throw new ValidationError('Give a reason for deleting this interaction (at least 5 characters).');
+  if (why.length > 1000) throw new ValidationError('The reason is too long (max 1000 characters).');
+
+  const current = await getInteraction(id);
+  if (!current) throw new ValidationError('Interaction not found. It may already have been deleted.');
+  const student = await getStudent(current.studentId);
+  if (!student) throw new ValidationError('Student not found.');
+  assertCanChangeInteraction(current, student, actor, 'delete');
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO deleted_interactions (id, student_id, data, delete_reason, deleted_by)
+       SELECT it.id, it.student_id, to_jsonb(it), $2, $3 FROM interactions it WHERE it.id = $1`,
+      [id, why, actor.id]
+    );
+    const { rowCount } = await client.query('DELETE FROM interactions WHERE id = $1', [id]);
+    if (rowCount !== 1) throw new ValidationError('Interaction not found. It may already have been deleted.');
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return { student: (await getStudent(current.studentId))! };
+}
+
 // Edit a logged interaction. Allowed for the student's assigned instructor or whoever logged it.
 // Student, level/step snapshot and creation time are fixed; the rest can be corrected.
 export async function updateInteraction(
@@ -212,12 +254,7 @@ export async function updateInteraction(
   if (!current) throw new ValidationError('Interaction not found.');
   const student = await getStudent(current.studentId);
   if (!student) throw new ValidationError('Student not found.');
-
-  const isAssigned = actor.role === 'instructor' && !!actor.instructorId && student.instructorId === actor.instructorId;
-  const isAuthor = actor.role === 'instructor' && current.createdBy === actor.id;
-  if (!isAssigned && !isAuthor) {
-    throw new ForbiddenError('Only the assigned instructor or the person who logged this interaction can edit it.');
-  }
+  assertCanChangeInteraction(current, student, actor, 'edit');
 
   const next = { ...current, ...patch };
   validateInteractionFields(next);

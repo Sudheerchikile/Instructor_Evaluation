@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { Student, InteractionLog, InstructorUser, InstructorOption } from "@/lib/types";
 import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
 import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
-import { ApiError, createInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
+import { ApiError, createInteraction, deleteInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
 import { todayLocal } from "@/lib/dates";
 import { clearInteractionDraft, interactionDraftKey } from "@/lib/interactionDraft";
 import { StudentRosterTable } from "@/components/StudentRosterTable";
 import { PostInteractionModal } from "@/components/PostInteractionModal";
+import { DeleteInteractionDialog } from "@/components/DeleteInteractionDialog";
 import { StudentHistoryModal } from "@/components/StudentHistoryModal";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { InteractionLogsTable } from "@/components/InteractionLogsTable";
@@ -109,6 +110,19 @@ export default function Home() {
     setHistoryStudent(null);
     setEditingLog(log);
     setPostInteractionStudent(student);
+  };
+  // Delete: the dialog asks for confirmation and a reason; on success the log disappears everywhere and the
+  // student's status is re-read (it is derived from the remaining interactions).
+  const [deletingLog, setDeletingLog] = useState<InteractionLog | null>(null);
+  const confirmDeleteInteraction = (reason: string) => {
+    const log = deletingLog;
+    if (!log) return Promise.resolve();
+    return deleteInteraction(log.id, reason).then(({ student }) => {
+      replaceStudent(student);
+      setInteractions((prev) => prev.filter((l) => l.id !== log.id));
+      if (currentUser) clearInteractionDraft(interactionDraftKey(currentUser.id, { studentId: log.studentId, editingId: log.id }));
+      setDeletingLog(null);
+    });
   };
   const closeInteractionForm = () => { setPostInteractionStudent(null); setPostInteractionDraft(null); setEditingLog(null); };
   const replaceStudent = (updated: Student) => setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
@@ -232,7 +246,7 @@ export default function Home() {
             <InstructorDirectoryTable students={students} interactions={interactions} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
           </div>
         )}
-        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} canEdit={canEditInteraction} onEdit={handleEditInteraction} />}
+        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} canEdit={canEditInteraction} onEdit={handleEditInteraction} onDelete={setDeletingLog} />}
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       {postInteractionStudent && (
@@ -247,7 +261,11 @@ export default function Home() {
         canLogInteraction={!isAdmin && activeTab === "my-students"}
         canEdit={canEditInteraction}
         onEdit={handleEditInteraction}
+        onDelete={setDeletingLog}
       />
+      {deletingLog && (
+        <DeleteInteractionDialog key={deletingLog.id} log={deletingLog} onCancel={() => setDeletingLog(null)} onConfirm={confirmDeleteInteraction} />
+      )}
     </div>
   );
 }

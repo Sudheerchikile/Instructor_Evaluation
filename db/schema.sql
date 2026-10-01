@@ -103,6 +103,19 @@ CREATE INDEX IF NOT EXISTS interactions_date_idx ON interactions (date);
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_by TEXT;
 
+-- Deleted interactions (duplicates, wrong details). A delete moves the row here, so every query, count and
+-- status (all read `interactions`) drops it with no extra filter. `data` is the full row as JSON, so a
+-- mistaken delete can be restored. deleted_by is the user id (no FK, so removing a login never blocks this).
+CREATE TABLE IF NOT EXISTS deleted_interactions (
+  id             TEXT PRIMARY KEY,
+  student_id     TEXT NOT NULL,
+  data           JSONB NOT NULL,
+  delete_reason  TEXT NOT NULL,
+  deleted_by     TEXT NOT NULL,
+  deleted_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS deleted_interactions_student_idx ON deleted_interactions (student_id);
+
 -- Student + matched instructor + derived interaction stats.
 -- interactionCount and lastInteractionDate are computed, never stored, so they can't drift.
 -- level_status is the student's standing at their CURRENT level, from the latest interaction logged at

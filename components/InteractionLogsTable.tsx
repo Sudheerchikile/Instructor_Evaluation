@@ -10,6 +10,7 @@ import {
   X, 
   Eye,
   Pencil,
+  Trash2,
   FileSpreadsheet
 } from 'lucide-react';
 
@@ -19,13 +20,15 @@ interface InteractionLogsTableProps {
   currentInstructor: string;
   canEdit?: (log: InteractionLog) => boolean;
   onEdit?: (log: InteractionLog) => void;
+  onDelete?: (log: InteractionLog) => void; // same permission as editing
 }
 
 export function InteractionLogsTable({
   interactions,
   onExportCSV,
   canEdit = () => false,
-  onEdit
+  onEdit,
+  onDelete
 }: InteractionLogsTableProps) {
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<InteractionLog | null>(null);
@@ -272,6 +275,15 @@ export function InteractionLogsTable({
             </div>
 
             <div className="mt-5 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              {onDelete && canEdit(selectedLog) && (
+                <button
+                  onClick={() => { const log = selectedLog; setSelectedLog(null); onDelete(log); }}
+                  className="mr-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:bg-zinc-900 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete interaction
+                </button>
+              )}
               {onEdit && canEdit(selectedLog) && (
                 <button
                   onClick={() => { const log = selectedLog; setSelectedLog(null); onEdit(log); }}
