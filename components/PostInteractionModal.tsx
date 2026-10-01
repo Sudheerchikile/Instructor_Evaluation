@@ -7,7 +7,9 @@ import { blockKeyboardSubmit } from '@/lib/forms';
 import {
   InteractionDraftFields, clearInteractionDraft, interactionDraftKey, loadInteractionDraft, saveInteractionDraft,
 } from '@/lib/interactionDraft';
-import { X, Save, RotateCcw } from 'lucide-react';
+import { SHEET_COLUMNS, SheetRowResult, parseSheetRow } from '@/lib/sheetRowParser';
+import { instructorNamesMatch } from '@/lib/storage';
+import { X, Save, RotateCcw, ClipboardPaste, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
 import { TopicMultiPicker } from '@/components/TopicMultiPicker';
 import { getTopicOptions } from '@/lib/multiLevelCurriculum';
@@ -118,6 +120,36 @@ export function PostInteractionModal({
     if (draftKey) clearInteractionDraft(draftKey);
   };
 
+  // "Paste from sheet": one row copied from the instructors' sheet fills the form. Empty cells don't wipe a field.
+  const [sheetText, setSheetText] = useState('');
+  const [sheetResult, setSheetResult] = useState<SheetRowResult | null>(null);
+  const fillFromSheet = () => {
+    if (!student) return;
+    const result = parseSheetRow(sheetText, getTopicOptions((editing ? editing.level : student.level) ?? student.level), todayLocal());
+    const v = result.values;
+    if (v.takenByName) {
+      const match = instructorOptions.find((o) => instructorNamesMatch(o.name, v.takenByName!) || instructorNamesMatch(o.firstName, v.takenByName!));
+      if (match) { setTakenById(match.id); setTakenByError(false); }
+      else {
+        result.filled--;
+        result.warnings.push(`Instructor "${v.takenByName}" is not in the instructor list. Pick Interaction Taken By by hand.`);
+      }
+    }
+    if (v.date) { setInteractionDate(v.date); setDateError(false); }
+    if (v.topics) { setTopics(v.topics); setTopicsError(false); }
+    if (v.status) setStatusPostInteraction(v.status);
+    if (v.rating !== undefined) setRating(v.rating);
+    if (v.questionsAsked) setQuestionsAsked(v.questionsAsked);
+    if (v.remarks) setRemarks(v.remarks);
+    if (v.performedWell) setPerformedWell(v.performedWell);
+    if (v.improvementAreas) setImprovementAreas(v.improvementAreas);
+    if (v.tweakedQuestions) setTweakedQuestions(v.tweakedQuestions);
+    if (v.actionItems) setActionItems(v.actionItems);
+    if (v.meetRecording) setMeetRecording(v.meetRecording);
+    setSheetResult(result);
+    if (result.filled) setSheetText('');
+  };
+
   const [interactionRound] = useState(initialDraft?.round || 1);
 
   if (!isOpen || !student) return null;
@@ -205,6 +237,53 @@ export function PostInteractionModal({
               </button>
             </div>
           )}
+
+          {/* Paste from sheet */}
+          <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50/60 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label htmlFor="sheet-row" className="flex items-center gap-1.5 font-medium text-zinc-700 dark:text-zinc-300">
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                Paste from sheet
+              </label>
+              <span className="hidden text-[10px] text-zinc-400 sm:block" title={`Without a header row, columns are read in this order: ${SHEET_COLUMNS.join(' | ')}`}>
+                Header row + one row, as a table or copied from the sheet
+              </span>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <textarea
+                id="sheet-row"
+                rows={2}
+                value={sheetText}
+                onChange={(e) => setSheetText(e.target.value)}
+                placeholder="| Date | Instructor's Name | Topics | Status Post Interaction | Rating | ... |&#10;| ---- | ... |&#10;| Sep 22, 2026 | ... |"
+                className="min-h-14 flex-1 rounded-md border border-zinc-200 bg-white p-2 font-mono text-[11px] text-zinc-900 placeholder:font-sans placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+              />
+              <button
+                type="button"
+                onClick={fillFromSheet}
+                disabled={!sheetText.trim()}
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white cursor-pointer"
+              >
+                Fill fields
+              </button>
+            </div>
+            {sheetResult && (
+              <div className="mt-2 space-y-1 text-[11px]">
+                {sheetResult.filled > 0 && (
+                  <p className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    Filled {sheetResult.filled} field{sheetResult.filled === 1 ? '' : 's'}. Review them, then click Save.
+                  </p>
+                )}
+                {sheetResult.warnings.map((w) => (
+                  <p key={w} className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Form Fields: Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -411,12 +490,13 @@ export function PostInteractionModal({
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 Tweaked Questions Asked
               </label>
-              <input
-                type="text"
+              {/* Multi-line so text pasted from the sheet keeps its line breaks. */}
+              <textarea
+                rows={2}
                 value={tweakedQuestions}
                 onChange={(e) => setTweakedQuestions(e.target.value)}
                 placeholder="Any customized variant problems posed"
-                className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
 
@@ -424,26 +504,26 @@ export function PostInteractionModal({
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 Action Items
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={2}
                 value={actionItems}
                 onChange={(e) => setActionItems(e.target.value)}
                 placeholder="1) Practice implementation problems across all Level-0 topics"
-                className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
           </div>
 
-          {/* Meet Recording URL */}
+          {/* Interaction cell link (stored in the meetRecording / meet_recording field, which held meet links before) */}
           <div>
             <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Meet Recording
+              Interaction Cell Link from Sheet
             </label>
             <input
               type="url"
               value={meetRecording}
               onChange={(e) => setMeetRecording(e.target.value)}
-              placeholder="https://notes.granola.ai/t/..."
+              placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=...&range=..."
               className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 font-mono text-[11px] text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
             />
           </div>

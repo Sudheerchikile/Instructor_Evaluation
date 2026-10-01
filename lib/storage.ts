@@ -77,7 +77,7 @@ export function getInstructorSummaries(students: Student[]): InstructorSummary[]
 }
 
 export function exportInteractionsToCSV(interactions: InteractionLog[]): void {
-  const headers = ["Instructor's Name","Instructor Email","Topics","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Meet Recording","Granola Transcript"];
+  const headers = ["Instructor's Name","Instructor Email","Topics","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
   const esc = (v: string | number | undefined | null) => { if (v == null) return '""'; return `"${String(v).replace(/"/g, '""')}"`; };
   const rows = [headers.map(esc).join(',')];
   for (const log of interactions) {

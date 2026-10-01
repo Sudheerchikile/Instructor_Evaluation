@@ -250,7 +250,7 @@ export function InteractionLogsTable({
               ))}
 
               <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-                <span className="mb-1 block text-[11px] font-medium text-zinc-500">Meet Recording</span>
+                <span className="mb-1 block text-[11px] font-medium text-zinc-500">Interaction Cell Link (from sheet)</span>
                 {selectedLog.meetRecording ? (
                   <a href={selectedLog.meetRecording} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 break-all font-medium text-zinc-900 hover:underline dark:text-zinc-100">
                     {selectedLog.meetRecording}

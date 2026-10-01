@@ -237,7 +237,7 @@ export function StudentHistoryModal({
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 text-[11px] font-medium text-[#adbac7] hover:text-[#cdd9e5] hover:underline underline-offset-2"
                             >
-                              Open meet recording <ExternalLink className="h-3 w-3" />
+                              Open interaction cell in sheet <ExternalLink className="h-3 w-3" />
                             </a>
                           )}
                           {/* Older logs only; new logs no longer store a transcript */}
