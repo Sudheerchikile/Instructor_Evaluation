@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { Student, InteractionLog, InstructorSummary } from '@/lib/types';
 import { instructorNamesMatch } from '@/lib/storage';
-import { ALL_TOPICS, LEVELS } from '@/lib/multiLevelCurriculum';
+import { ALL_TOPICS, LEVELS, getTopicOptions } from '@/lib/multiLevelCurriculum';
 import { todayLocal } from '@/lib/dates';
 import { DailyCollegeOverview } from '@/components/DailyCollegeOverview';
 import { StudentHistoryModal } from '@/components/StudentHistoryModal';
@@ -48,6 +48,7 @@ export function AnalyticsDashboard({
   const [instructorSearch, setInstructorSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
   const [topicSearch, setTopicSearch] = useState('');
+  const [topicLevel, setTopicLevel] = useState<string>('ALL'); // 'ALL' or a level label, e.g. "Level 1"
 
   const totalStudents = students.length;
 
@@ -78,9 +79,10 @@ export function AnalyticsDashboard({
   ).size;
 
   // Topics come from the DB and are validated against the curriculum on save, so exact matching is enough.
-  const topicProgressionCounts = ALL_TOPICS.map((topic) => ({
+  // "All topics" lists every level's topics; picking a level lists only its topics, counting students at that level.
+  const topicProgressionCounts = (topicLevel === 'ALL' ? ALL_TOPICS : getTopicOptions(topicLevel)).map((topic) => ({
     topic,
-    count: students.filter((student) => student.currentTopic === topic).length,
+    count: students.filter((student) => student.currentTopic === topic && (topicLevel === 'ALL' || student.level === topicLevel)).length,
   })).filter((entry) => {
     const query = topicSearch.trim().toLowerCase();
     if (!query) return true;
@@ -341,14 +343,33 @@ export function AnalyticsDashboard({
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Current Topic Progression</div>
-            <input
-              type="text"
-              value={topicSearch}
-              onChange={(e) => setTopicSearch(e.target.value)}
-              placeholder="Search topic"
-              className="w-40 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:placeholder:text-zinc-500"
-            />
+            <div className="flex items-center gap-2">
+              <select
+                value={topicLevel}
+                onChange={(e) => setTopicLevel(e.target.value)}
+                aria-label="Show topics of"
+                className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 cursor-pointer"
+              >
+                <option value="ALL">All topics</option>
+                {LEVELS.map((level) => (
+                  <option key={level} value={level}>{level} topics</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={topicSearch}
+                onChange={(e) => setTopicSearch(e.target.value)}
+                placeholder="Search topic"
+                className="w-32 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+              />
+            </div>
           </div>
+          {topicLevel !== 'ALL' && (
+            <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+              <span>Students at {topicLevel}</span>
+              <span className="font-mono text-zinc-900 dark:text-zinc-100">{students.filter((s) => s.level === topicLevel).length}</span>
+            </div>
+          )}
           <div className="space-y-2 max-h-[330px] overflow-y-auto pr-1">
             {topicProgressionCounts.length > 0 ? topicProgressionCounts.map(({ topic, count }) => (
               <div key={topic} className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300 gap-3">
