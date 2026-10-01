@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Users, BarChart2, FileSpreadsheet, Download, UserCheck, Sun, Moon, Layers, LogOut, ShieldCheck, Contact } from "lucide-react";
+import Image from "next/image";
+import { Users, BarChart2, FileSpreadsheet, Download, UserCheck, Sun, Moon, LogOut, ShieldCheck, Contact } from "lucide-react";
 import { InstructorUser } from "@/lib/types";
 
 export type AppTab = "my-students" | "all-students" | "instructors" | "analytics" | "logs";
@@ -28,7 +29,7 @@ export function Navbar({ currentInstructor, currentUser, activeTab, setActiveTab
     <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-950/95 backdrop-blur-xs transition-colors">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"><Layers className="h-4 w-4" /></div>
+          <Image src="/niat-logo.png" alt="NIAT" width={32} height={32} priority className="h-8 w-8 rounded-md shadow-2xs" />
           <div className="flex items-baseline gap-2">
             <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">KKH DSA Evaluation</span>
             <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">v2.4</span>

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Eye, EyeOff, Layers, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { fetchCurrentUser, signIn } from '@/lib/api';
 
 // Sign-in only. Accounts are created by the admin with `npm run db:users`; there is no registration.
@@ -37,9 +38,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
-            <Layers className="h-5 w-5" />
-          </div>
+          <Image src="/niat-logo.png" alt="NIAT" width={48} height={48} priority className="h-12 w-12 rounded-xl shadow-sm" />
           <div className="text-center">
             <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">KKH DSA Evaluation</h1>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Instructor portal · v2.4</p>
