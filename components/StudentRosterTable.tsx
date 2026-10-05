@@ -1,6 +1,6 @@
 'use client';
  
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Student } from '@/lib/types';
 import { isStudentAssignedTo, normalizeTopicValue } from '@/lib/storage';
 import { ALL_TOPICS, LEVELS, getStepOptionsForTopic, getTopicOptions } from '@/lib/multiLevelCurriculum';
@@ -43,9 +43,17 @@ export function StudentRosterTable({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [hallFilter, setHallFilter] = useState('ALL');
   const [topicFilter, setTopicFilter] = useState('ALL');
+  const [sortMode, setSortMode] = useState<'natural' | 'top-performing'>(isAllDirectory ? 'top-performing' : 'natural');
   const [page, setPage] = useState(1);
   const pageSize = 15;
 
+  useEffect(() => {
+    if (isAllDirectory) {
+      setSortMode('top-performing');
+    } else {
+      setSortMode('natural');
+    }
+  }, [isAllDirectory]);
 
   const getLevelNumber = (level: string) => Number((level.match(/\d+/) ?? ['0'])[0]);
   const getTopicProgressionIndex = (level: string, topic?: string) => {
@@ -59,6 +67,16 @@ export function StudentRosterTable({
     const normalizedStep = (step ?? '').trim();
     const match = options.findIndex((option) => option.trim() === normalizedStep);
     return match >= 0 ? match : -1;
+  };
+
+  const compareStudentProgress = (a: Student, b: Student) => {
+    const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
+    if (levelDiff !== 0) return levelDiff;
+
+    const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
+    if (topicDiff !== 0) return topicDiff;
+
+    return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
   };
 
   const filtered = useMemo(() => {
@@ -85,32 +103,22 @@ export function StudentRosterTable({
       return true;
     });
 
-    return matches.sort((a, b) => {
-      const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
-      if (levelDiff !== 0) return levelDiff;
-
-      const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
-      if (topicDiff !== 0) return topicDiff;
-
-      return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
-    });
-  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter]);
+    if (sortMode === 'top-performing') {
+      return [...matches].sort(compareStudentProgress);
+    }
+    return matches;
+  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter, sortMode]);
 
   const scoped = useMemo(() => {
     const base = isAllDirectory || currentInstructor === 'Admin'
       ? students
       : students.filter((s) => isStudentAssignedTo(s, { name: currentInstructor, email: currentInstructorEmail }));
 
-    return [...base].sort((a, b) => {
-      const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
-      if (levelDiff !== 0) return levelDiff;
-
-      const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
-      if (topicDiff !== 0) return topicDiff;
-
-      return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
-    });
-  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory]);
+    if (sortMode === 'top-performing') {
+      return [...base].sort(compareStudentProgress);
+    }
+    return base;
+  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, sortMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -261,6 +269,20 @@ export function StudentRosterTable({
               </option>
             ))}
           </select>
+
+          {!isAllDirectory && (
+            <select
+              value={sortMode}
+              onChange={(e) => {
+                setSortMode(e.target.value as 'natural' | 'top-performing');
+                setPage(1);
+              }}
+              className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <option value="natural">Default order</option>
+              <option value="top-performing">Top performing</option>
+            </select>
+          )}
         </div>
       </div>
 
