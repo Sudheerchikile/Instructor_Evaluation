@@ -16,6 +16,8 @@ import {
 
 interface InteractionLogsTableProps {
   interactions: InteractionLog[];
+  selectedDate: string;
+  onDateChange: (date: string) => void;
   onExportCSV: () => void;
   currentInstructor: string;
   canEdit?: (log: InteractionLog) => boolean;
@@ -25,6 +27,8 @@ interface InteractionLogsTableProps {
 
 export function InteractionLogsTable({
   interactions,
+  selectedDate,
+  onDateChange,
   onExportCSV,
   canEdit = () => false,
   onEdit,
@@ -47,6 +51,8 @@ export function InteractionLogsTable({
     );
   });
 
+  const isToday = selectedDate === todayLocal();
+
   return (
     <div className="space-y-4">
       {/* Top Banner - Linear utilitarian header */}
@@ -55,24 +61,37 @@ export function InteractionLogsTable({
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              Today&apos;s Interactions
+              {isToday ? "Today's Interactions" : `Interactions for ${selectedDate}`}
             </h2>
             <span className="font-mono text-xs text-zinc-500">
-              ({todayLocal()} • {interactions.length} {interactions.length === 1 ? 'record' : 'records'})
+              ({selectedDate} • {interactions.length} {interactions.length === 1 ? 'record' : 'records'})
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Interactions taken today by all instructors. Earlier sessions are in each student&apos;s history.
+            {isToday ? "Interactions taken today by all instructors. Earlier sessions are in each student's history." : "All recorded interactions for the selected date."}
           </p>
         </div>
 
-        <button
-          onClick={onExportCSV}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <Download className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-          <span>Export Today (CSV)</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+            <span>Date</span>
+            <input
+              type="date"
+              value={selectedDate}
+              max={todayLocal()}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="rounded border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-800 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+          </label>
+
+          <button
+            onClick={onExportCSV}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-zinc-200 bg-white text-xs font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+            <span>{isToday ? 'Export Today (CSV)' : `Export ${selectedDate} (CSV)`}</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Filter */}
@@ -183,7 +202,7 @@ export function InteractionLogsTable({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-xs text-zinc-500">
-                    {interactions.length === 0 ? 'No interactions taken today yet.' : 'No matching logs found.'}
+                    {interactions.length === 0 ? `No interactions found for ${selectedDate}.` : 'No matching logs found.'}
                   </td>
                 </tr>
               )}

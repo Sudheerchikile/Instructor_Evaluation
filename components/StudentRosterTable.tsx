@@ -47,8 +47,22 @@ export function StudentRosterTable({
   const pageSize = 15;
 
 
+  const getLevelNumber = (level: string) => Number((level.match(/\d+/) ?? ['0'])[0]);
+  const getTopicProgressionIndex = (level: string, topic?: string) => {
+    const options = getTopicOptions(level);
+    const normalizedTopic = normalizeTopicValue(topic ?? '');
+    const match = options.findIndex((option) => normalizeTopicValue(option) === normalizedTopic);
+    return match >= 0 ? match : -1;
+  };
+  const getStepProgressionIndex = (level: string, topic?: string, step?: string) => {
+    const options = getStepOptionsForTopic(level, topic);
+    const normalizedStep = (step ?? '').trim();
+    const match = options.findIndex((option) => option.trim() === normalizedStep);
+    return match >= 0 ? match : -1;
+  };
+
   const filtered = useMemo(() => {
-    return students.filter((s) => {
+    const matches = students.filter((s) => {
       if (!isAllDirectory && currentInstructor !== 'Admin') {
         if (!isStudentAssignedTo(s, { name: currentInstructor, email: currentInstructorEmail })) return false;
       }
@@ -70,18 +84,37 @@ export function StudentRosterTable({
 
       return true;
     });
+
+    return matches.sort((a, b) => {
+      const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
+      if (levelDiff !== 0) return levelDiff;
+
+      const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
+      if (topicDiff !== 0) return topicDiff;
+
+      return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
+    });
   }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter]);
+
+  const scoped = useMemo(() => {
+    const base = isAllDirectory || currentInstructor === 'Admin'
+      ? students
+      : students.filter((s) => isStudentAssignedTo(s, { name: currentInstructor, email: currentInstructorEmail }));
+
+    return [...base].sort((a, b) => {
+      const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
+      if (levelDiff !== 0) return levelDiff;
+
+      const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
+      if (topicDiff !== 0) return topicDiff;
+
+      return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
+    });
+  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  // Students this view covers (all for the directory, own students for the Assigned page), before filters.
-  const scoped = useMemo(() => (
-    isAllDirectory || currentInstructor === 'Admin'
-      ? students
-      : students.filter((s) => isStudentAssignedTo(s, { name: currentInstructor, email: currentInstructorEmail }))
-  ), [students, currentInstructor, currentInstructorEmail, isAllDirectory]);
 
   const statusCounts = useMemo(() => {
     const counts = { PENDING: 0, IN_PROGRESS: 0, REVISIT: 0, CLEARED: 0 };
@@ -137,7 +170,7 @@ export function StudentRosterTable({
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search by student name, roll ID, or instructor..."
+            placeholder="Search by student name, instructor, or ID..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -238,7 +271,6 @@ export function StudentRosterTable({
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/60 font-medium text-zinc-500 dark:text-zinc-400">
                 <th className="py-2.5 pl-4 pr-3">Student</th>
-                <th className="py-2.5 px-3">Roll ID</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">Degree & Section</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">Exam Hall</th>
                 {/* Assigned page lists only the signed-in instructor's students, so the column is Directory-only. */}
@@ -271,11 +303,6 @@ export function StudentRosterTable({
                       <div className="text-[11px] text-zinc-400 sm:hidden font-mono mt-0.5">
                         {student.id}
                       </div>
-                    </td>
-
-                    {/* Student ID */}
-                    <td className="py-2.5 px-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">
-                      {student.id}
                     </td>
 
                     {/* Degree & Section */}
@@ -402,7 +429,7 @@ export function StudentRosterTable({
 
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={isAllDirectory ? 10 : 9} className="py-12 text-center text-xs text-zinc-500">
+                  <td colSpan={isAllDirectory ? 9 : 8} className="py-12 text-center text-xs text-zinc-500">
                     No candidates match the active filter criteria.
                   </td>
                 </tr>

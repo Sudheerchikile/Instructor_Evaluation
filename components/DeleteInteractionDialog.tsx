@@ -47,7 +47,7 @@ export function DeleteInteractionDialog({ log, onCancel, onConfirm }: DeleteInte
         </div>
 
         <p className="mt-4 text-zinc-600 dark:text-zinc-400">
-          It will be removed from the student&apos;s history, Today&apos;s Interactions and all counts, and the student&apos;s status will be recalculated.
+          It will be removed from the student's history, Today's Interactions and all counts, and the student's status will be recalculated.
         </p>
 
         <label htmlFor="delete-reason" className="mt-4 block font-medium text-zinc-700 dark:text-zinc-300">

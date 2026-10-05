@@ -25,6 +25,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<InstructorUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("all-students");
+  const [selectedLogDate, setSelectedLogDate] = useState<string>(todayLocal());
 
   // The session lives in an httpOnly cookie; the server tells us who is signed in.
   useEffect(() => {
@@ -179,12 +180,9 @@ export default function Home() {
   };
   const handleExportCSV = () => exportInteractionsToCSV(interactions);
 
-  // "Today's Interactions" page only: every instructor's interactions TAKEN today (interaction date).
-  // One taken earlier but logged today is back-dated, so it appears only in the student's history.
-  const todaysLogs = useMemo(() => {
-    const today = todayLocal();
-    return interactions.filter((log) => log.date === today);
-  }, [interactions]);
+  const filteredLogsForDate = useMemo(() => {
+    return interactions.filter((log) => log.date === selectedLogDate);
+  }, [interactions, selectedLogDate]);
 
   if (!authChecked || !currentUser || (!dataLoaded && !dataError)) {
     return (
@@ -206,7 +204,7 @@ export default function Home() {
         setActiveTab={setActiveTab}
         onExportCSV={handleExportCSV}
         onLogout={handleLogout}
-        interactionCount={todaysLogs.length}
+        interactionCount={filteredLogsForDate.length}
         totalStudents={students.length}
         assignedCount={assignedCount}
         theme={theme}
@@ -246,7 +244,18 @@ export default function Home() {
             <InstructorDirectoryTable students={students} interactions={interactions} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
           </div>
         )}
-        {activeTab === "logs" && <InteractionLogsTable interactions={todaysLogs} onExportCSV={() => exportInteractionsToCSV(todaysLogs)} currentInstructor={currentInstructor} canEdit={canEditInteraction} onEdit={handleEditInteraction} onDelete={setDeletingLog} />}
+        {activeTab === "logs" && (
+          <InteractionLogsTable
+            interactions={filteredLogsForDate}
+            selectedDate={selectedLogDate}
+            onDateChange={setSelectedLogDate}
+            onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate)}
+            currentInstructor={currentInstructor}
+            canEdit={canEditInteraction}
+            onEdit={handleEditInteraction}
+            onDelete={setDeletingLog}
+          />
+        )}
         {activeTab === "analytics" && <AnalyticsDashboard students={students} interactions={interactions} instructorSummaries={instructorSummaries} onExportCSV={handleExportCSV} onSelectInstructor={handleSelectInstructor} currentInstructorId={currentUser.instructorId} />}
       </main>
       {postInteractionStudent && (

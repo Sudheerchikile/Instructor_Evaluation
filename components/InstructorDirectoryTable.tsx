@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Search, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
+import { normalizeTopicValue } from '@/lib/storage';
+import { getStepOptionsForTopic, getTopicOptions } from '@/lib/multiLevelCurriculum';
 import { AddInstructorForm } from '@/components/AddInstructorForm';
 import { InstructorHistoryModal } from '@/components/InstructorHistoryModal';
 
@@ -23,6 +25,20 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
   const [showAdd, setShowAdd] = useState(false);
   const [created, setCreated] = useState<CreateInstructorResult | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  const getLevelNumber = (level: string) => Number((level.match(/\d+/) ?? ['0'])[0]);
+  const getTopicProgressionIndex = (level: string, topic?: string) => {
+    const options = getTopicOptions(level);
+    const normalizedTopic = normalizeTopicValue(topic ?? '');
+    const match = options.findIndex((option) => normalizeTopicValue(option) === normalizedTopic);
+    return match >= 0 ? match : -1;
+  };
+  const getStepProgressionIndex = (level: string, topic?: string, step?: string) => {
+    const options = getStepOptionsForTopic(level, topic);
+    const normalizedStep = (step ?? '').trim();
+    const match = options.findIndex((option) => option.trim() === normalizedStep);
+    return match >= 0 ? match : -1;
+  };
 
   useEffect(() => {
     fetchInstructors().then(setInstructors).catch((err: Error) => setError(err.message));
@@ -104,7 +120,6 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50/70 font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
               <th className="py-2.5 pl-4 pr-3">Instructor</th>
-              <th className="py-2.5 px-3">ID</th>
               <th className="py-2.5 px-3">Shown in Student List as</th>
               <th className="py-2.5 px-3">Company email</th>
               <th className="py-2.5 px-3 text-right">Students</th>
@@ -114,6 +129,15 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
           <tbody className="divide-y divide-zinc-100 text-zinc-700 dark:divide-zinc-800/60 dark:text-zinc-300">
             {filtered.map((inst) => {
               const isOpen = expanded === inst.id;
+              const rankedStudents = [...inst.students].sort((a, b) => {
+                const levelDiff = getLevelNumber(b.level) - getLevelNumber(a.level);
+                if (levelDiff !== 0) return levelDiff;
+
+                const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
+                if (topicDiff !== 0) return topicDiff;
+
+                return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
+              });
               return (
                 <React.Fragment key={inst.id}>
                   <tr onClick={() => setExpanded(isOpen ? null : inst.id)} className="cursor-pointer hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40">
@@ -123,7 +147,6 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                         {inst.name}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.id}</td>
                     <td className="py-2.5 px-3">{inst.firstName}</td>
                     <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.email}</td>
                     <td className="py-2.5 px-3 text-right font-mono">{inst.students.length}</td>
@@ -140,7 +163,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={6} className="bg-zinc-50/60 px-4 py-3 dark:bg-zinc-950/40">
+                      <td colSpan={5} className="bg-zinc-50/60 px-4 py-3 dark:bg-zinc-950/40">
                         {inst.students.length === 0 ? (
                           <p className="text-zinc-500">No students assigned.</p>
                         ) : (
@@ -148,7 +171,6 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                             <thead>
                               <tr className="text-zinc-500">
                                 <th className="py-1 pr-3 text-left font-medium">Student</th>
-                                <th className="py-1 px-3 text-left font-medium">Roll ID</th>
                                 <th className="py-1 px-3 text-left font-medium">Level</th>
                                 <th className="py-1 px-3 text-left font-medium">Current Topic</th>
                                 <th className="py-1 px-3 text-left font-medium">Current Step</th>
@@ -156,10 +178,9 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                               </tr>
                             </thead>
                             <tbody>
-                              {inst.students.map((s) => (
+                              {rankedStudents.map((s) => (
                                 <tr key={s.id}>
                                   <td className="py-1 pr-3 text-zinc-900 dark:text-zinc-100">{s.name}</td>
-                                  <td className="py-1 px-3 font-mono text-zinc-500">{s.id}</td>
                                   <td className="py-1 px-3 font-mono">{s.level}</td>
                                   <td className="py-1 px-3">{s.currentTopic}</td>
                                   <td className="py-1 px-3">{s.currentStep}</td>
@@ -176,7 +197,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="py-10 text-center text-zinc-500">No instructor matches your search.</td></tr>
+              <tr><td colSpan={5} className="py-10 text-center text-zinc-500">No instructor matches your search.</td></tr>
             )}
           </tbody>
         </table>

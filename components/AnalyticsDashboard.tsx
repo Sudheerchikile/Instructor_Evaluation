@@ -191,6 +191,8 @@ export function AnalyticsDashboard({
         </button>
       </div>
 
+     
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400"><CalendarRange className="h-3.5 w-3.5" />Interactions Taken</div>
@@ -213,6 +215,74 @@ export function AnalyticsDashboard({
           <div className="mt-2 text-[11px] text-zinc-500">Students advanced beyond Level 0 or an intro topic</div>
         </div>
       </div>
+
+
+  {/* students  in each level and  students in each topic with a level filter*/}
+   
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
+          <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Level Distribution</div>
+          <div className="space-y-3">
+            {levelDistribution.map(({ level, count }) => {
+              const pct = totalStudents ? ((count / totalStudents) * 100).toFixed(1) : '0.0';
+              return (
+                <div key={level} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200">{level}</span>
+                    <span className="font-mono text-zinc-500">{count} ({pct}%)</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-zinc-900 dark:bg-zinc-100 transition-all duration-300" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Current Topic Progression</div>
+            <div className="flex items-center gap-2">
+              <select
+                value={topicLevel}
+                onChange={(e) => setTopicLevel(e.target.value)}
+                aria-label="Show topics of"
+                className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 cursor-pointer"
+              >
+                <option value="ALL">All topics</option>
+                {LEVELS.map((level) => (
+                  <option key={level} value={level}>{level} topics</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={topicSearch}
+                onChange={(e) => setTopicSearch(e.target.value)}
+                placeholder="Search topic"
+                className="w-32 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+              /> 
+            </div>
+          </div>
+          {topicLevel !== 'ALL' && (
+            <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+              <span>Students at {topicLevel}</span>
+              <span className="font-mono text-zinc-900 dark:text-zinc-100">{students.filter((s) => s.level === topicLevel).length}</span>
+            </div>
+          )}
+          <div className="space-y-2 max-h-[330px] overflow-y-auto pr-1">
+            {topicProgressionCounts.length > 0 ? topicProgressionCounts.map(({ topic, count }) => (
+              <div key={topic} className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300 gap-3">
+                <span className="truncate pr-2">{topic}</span>
+                <span className="font-mono text-zinc-900 dark:text-zinc-100">{count}</span>
+              </div>
+            )) : (
+              <p className="text-xs text-zinc-500">No matching topic found.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
 
       <DailyCollegeOverview students={students} interactions={interactions} currentInstructorId={currentInstructorId} />
 
@@ -319,69 +389,7 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
-          <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Level Distribution</div>
-          <div className="space-y-3">
-            {levelDistribution.map(({ level, count }) => {
-              const pct = totalStudents ? ((count / totalStudents) * 100).toFixed(1) : '0.0';
-              return (
-                <div key={level} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">{level}</span>
-                    <span className="font-mono text-zinc-500">{count} ({pct}%)</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-zinc-900 dark:bg-zinc-100 transition-all duration-300" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Current Topic Progression</div>
-            <div className="flex items-center gap-2">
-              <select
-                value={topicLevel}
-                onChange={(e) => setTopicLevel(e.target.value)}
-                aria-label="Show topics of"
-                className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 cursor-pointer"
-              >
-                <option value="ALL">All topics</option>
-                {LEVELS.map((level) => (
-                  <option key={level} value={level}>{level} topics</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={topicSearch}
-                onChange={(e) => setTopicSearch(e.target.value)}
-                placeholder="Search topic"
-                className="w-32 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:placeholder:text-zinc-500"
-              />
-            </div>
-          </div>
-          {topicLevel !== 'ALL' && (
-            <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-              <span>Students at {topicLevel}</span>
-              <span className="font-mono text-zinc-900 dark:text-zinc-100">{students.filter((s) => s.level === topicLevel).length}</span>
-            </div>
-          )}
-          <div className="space-y-2 max-h-[330px] overflow-y-auto pr-1">
-            {topicProgressionCounts.length > 0 ? topicProgressionCounts.map(({ topic, count }) => (
-              <div key={topic} className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300 gap-3">
-                <span className="truncate pr-2">{topic}</span>
-                <span className="font-mono text-zinc-900 dark:text-zinc-100">{count}</span>
-              </div>
-            )) : (
-              <p className="text-xs text-zinc-500">No matching topic found.</p>
-            )}
-          </div>
-        </div>
-      </div>
+  
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 transition-colors shadow-2xs lg:col-span-2">

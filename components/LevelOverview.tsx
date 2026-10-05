@@ -68,7 +68,7 @@ export function LevelOverview({ students, activeLevel, activeStatus, onSelect }:
     <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
         <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Level overview</div>
-        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">Status at each student&apos;s current level · click a number to filter the table</div>
+        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">Status at each student's current level · click a number to filter the table</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">

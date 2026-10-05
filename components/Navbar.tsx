@@ -44,7 +44,7 @@ export function Navbar({ currentInstructor, currentUser, activeTab, setActiveTab
             <button onClick={() => setActiveTab("my-students")} className={tabCls("my-students")}><UserCheck className="h-3.5 w-3.5" /><span>Assigned</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{assignedCount}</span></button>
           )}
           <button onClick={() => setActiveTab("analytics")} className={tabCls("analytics")}><BarChart2 className="h-3.5 w-3.5" /><span>Analytics</span></button>
-          <button onClick={() => setActiveTab("logs")} className={tabCls("logs")}><FileSpreadsheet className="h-3.5 w-3.5" /><span>Today&apos;s Interactions</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{interactionCount}</span></button>
+          <button onClick={() => setActiveTab("logs")} className={tabCls("logs")}><FileSpreadsheet className="h-3.5 w-3.5" /><span>Today's Interactions</span><span className="ml-1 font-mono text-[11px] text-zinc-400">{interactionCount}</span></button>
         </nav>
         <div className="flex items-center gap-2">
           <button onClick={onToggleTheme} title="Toggle theme" className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
