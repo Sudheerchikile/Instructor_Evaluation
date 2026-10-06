@@ -6,6 +6,7 @@ import { instructorNamesMatch } from '@/lib/storage';
 import { ALL_TOPICS, LEVELS, getTopicOptions } from '@/lib/multiLevelCurriculum';
 import { todayLocal } from '@/lib/dates';
 import { DailyCollegeOverview } from '@/components/DailyCollegeOverview';
+import { LevelConversions } from '@/components/LevelConversions';
 import { StudentHistoryModal } from '@/components/StudentHistoryModal';
 import { 
   Download, 
@@ -283,6 +284,8 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
+
+      <LevelConversions students={students} currentInstructorId={currentInstructorId} />
 
       <DailyCollegeOverview students={students} interactions={interactions} currentInstructorId={currentInstructorId} />
 

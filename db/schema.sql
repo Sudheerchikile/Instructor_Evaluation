@@ -150,3 +150,62 @@ LEFT JOIN LATERAL (
   ORDER BY it.date DESC, it.created_at DESC
   LIMIT 1
 ) cur ON true;
+
+-- Level history: one row per level change, used for the Analytics "Level Conversions" counts.
+-- Rows are written by the trigger below whenever students.level changes, from any code path, so the
+-- deployed app needs no change to start recording. change_date is the calendar day in India (the DB
+-- clock is UTC). changed_by is the user id the API sets with set_config('app.user_id', ...).
+-- source 'backfill' rows were reconstructed once from interaction history (see below); their date is an
+-- estimate: the logged date of the last interaction before the change.
+CREATE TABLE IF NOT EXISTS level_changes (
+  id           BIGSERIAL PRIMARY KEY,
+  student_id   TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  from_level   SMALLINT NOT NULL CHECK (from_level BETWEEN 0 AND 7),
+  to_level     SMALLINT NOT NULL CHECK (to_level BETWEEN 0 AND 7),
+  change_date  DATE NOT NULL,
+  changed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  changed_by   TEXT,                               -- user id (no FK, so removing a login never blocks this)
+  source       TEXT NOT NULL DEFAULT 'app' CHECK (source IN ('app', 'backfill')),
+  CHECK (from_level <> to_level)
+);
+CREATE INDEX IF NOT EXISTS level_changes_date_idx ON level_changes (change_date);
+CREATE INDEX IF NOT EXISTS level_changes_student_idx ON level_changes (student_id, change_date);
+
+CREATE OR REPLACE FUNCTION record_level_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO level_changes (student_id, from_level, to_level, change_date, changed_by)
+  VALUES (NEW.id, OLD.level, NEW.level, (now() AT TIME ZONE 'Asia/Kolkata')::date,
+          NULLIF(current_setting('app.user_id', true), ''));
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS students_level_change ON students;
+CREATE TRIGGER students_level_change
+  AFTER UPDATE OF level ON students
+  FOR EACH ROW WHEN (OLD.level IS DISTINCT FROM NEW.level)
+  EXECUTE FUNCTION record_level_change();
+
+-- One-time data migrations, so re-running this file never repeats them.
+CREATE TABLE IF NOT EXISTS data_migrations (
+  name        TEXT PRIMARY KEY,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Backfill (runs once): level changes made before level_changes existed, rebuilt from interactions.
+-- Each interaction stores the student's level when it was saved (NULL = older logs, all Level 0), so
+-- walking a student's interactions in save order, a change between two consecutive logs, or between the
+-- last log and the current level, is a level change. It is dated by the logged date of the interaction
+-- just before the change (normally the one where the student cleared the level).
+WITH run AS (
+  INSERT INTO data_migrations (name) VALUES ('level_changes_backfill') ON CONFLICT (name) DO NOTHING RETURNING name
+), logs AS (
+  SELECT it.student_id, it.date, it.created_at, COALESCE(it.level, 0) AS lvl,
+         lead(COALESCE(it.level, 0)) OVER (PARTITION BY it.student_id ORDER BY it.created_at, it.id) AS next_lvl
+  FROM interactions it
+)
+INSERT INTO level_changes (student_id, from_level, to_level, change_date, changed_at, source)
+SELECT l.student_id, l.lvl, COALESCE(l.next_lvl, s.level), l.date, l.created_at, 'backfill'
+FROM logs l
+JOIN students s ON s.id = l.student_id
+WHERE COALESCE(l.next_lvl, s.level) <> l.lvl
+  AND EXISTS (SELECT 1 FROM run);

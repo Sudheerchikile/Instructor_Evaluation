@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { getPool } from './client';
-import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
+import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, getDefaultTopicForLevel, getStepOptionsForTopic, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
@@ -127,11 +127,47 @@ export async function updateStudentProgress(
   const step = patch.currentStep ?? (levelChanged || topicChanged ? coerceStep(level, topic, undefined) : coerceStep(level, topic, current.currentStep));
   if (!getStepOptionsForTopic(level, topic).includes(step)) throw new ValidationError(`Step "${step}" is not valid for ${topic}.`);
 
-  await getPool().query(
-    'UPDATE students SET level = $2, current_topic = $3, current_step = $4, updated_at = now() WHERE id = $1',
-    [id, levelNumber(level), topic, step]
-  );
+  // A level change is recorded in level_changes by a DB trigger; app.user_id tells it who made the change.
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.user_id', $1, true)", [actor.id]);
+    await client.query(
+      'UPDATE students SET level = $2, current_topic = $3, current_step = $4, updated_at = now() WHERE id = $1',
+      [id, levelNumber(level), topic, step]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
   return getStudent(id);
+}
+
+// Level conversions for Analytics: one entry per student per level crossed upward, per day (IST).
+// All of a student's changes on one day are netted from the first level that day to the last, so a mistaken
+// promotion undone the same day counts nothing, and a net move from Level N to Level M (M > N) counts once
+// for each step N→N+1 … M-1→M. Net moves down count nothing. `estimated` marks days rebuilt from interactions.
+export async function getLevelConversions(): Promise<LevelConversion[]> {
+  const { rows } = await getPool().query<LevelConversion>(
+    `WITH net AS (
+       SELECT student_id, change_date,
+              (array_agg(from_level ORDER BY changed_at, id))[1] AS start_level,
+              (array_agg(to_level ORDER BY changed_at DESC, id DESC))[1] AS end_level,
+              bool_or(source = 'backfill') AS estimated
+       FROM level_changes
+       GROUP BY student_id, change_date
+     )
+     SELECT to_char(n.change_date, 'YYYY-MM-DD') AS "date", n.student_id AS "studentId",
+            'Level ' || step AS "fromLevel", 'Level ' || (step + 1) AS "toLevel", n.estimated
+     FROM net n
+     CROSS JOIN LATERAL generate_series(n.start_level, n.end_level - 1) AS step
+     WHERE n.end_level > n.start_level
+     ORDER BY n.change_date DESC, step, n.student_id`
+  );
+  return rows;
 }
 
 export async function getInteractions(): Promise<InteractionLog[]> {

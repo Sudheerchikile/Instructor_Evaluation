@@ -2,7 +2,7 @@
 
 This document records how the app stores data today (browser localStorage and bundled JSON files), which changes have been made so far, and what a backend has to take over. Read it together with [context.jsx](context.jsx) and [claude-handoff.md](claude-handoff.md).
 
-Last updated: 2026-09-27
+Last updated: 2026-10-06
 
 ---
 
@@ -414,6 +414,13 @@ Because the data lives separately in each browser (§1), there is no single curr
     - The row is **moved** to the new table `deleted_interactions` (`id`, `student_id`, `data` = full row as JSONB, `delete_reason`, `deleted_by` = user id, `deleted_at`) in one transaction. Every query, count and status reads `interactions`, so nothing else needed a filter, and older deployed builds also stop showing it.
     - **Restoring** a mistaken delete: `INSERT INTO interactions SELECT * FROM jsonb_populate_record(NULL::interactions, (SELECT data FROM deleted_interactions WHERE id = '<id>'));` then `DELETE FROM deleted_interactions WHERE id = '<id>';`
     - UI: **Delete** next to **Edit** in a student's history, and **Delete interaction** in Today's Interactions → Inspect. A dialog (`components/DeleteInteractionDialog.tsx`) asks "Delete this interaction?" and the reason; on success the log disappears and the student's status is recalculated.
+27. **Level conversions in Analytics** (2026-10-06): how many students moved up each level (Level 0 → 1, 1 → 2 … 6 → 7) on a chosen day.
+    - New table `level_changes` (`student_id`, `from_level`, `to_level`, `change_date`, `changed_at`, `changed_by` = user id, `source` = `app` | `backfill`). The trigger `students_level_change` writes a row whenever `students.level` changes, from any code path, so the older deployed app records changes too. `change_date` is the **India** calendar day (the DB clock is UTC). `updateStudentProgress` sets `app.user_id` in its transaction so the trigger knows who made the change.
+    - **Backfill (runs once, guarded by the new `data_migrations` table):** changes made before tracking are rebuilt from interactions. Each interaction stores the student's level when it was saved, so a level change between two consecutive logs (in save order), or between the last log and the current level, is a change. It is dated by the **logged date of the last interaction before the change**, normally the one where the student cleared the level. These rows show "≈" in the UI. A student promoted without any interaction can't be dated and is skipped (0 such students on 2026-10-06). Preview on 2026-10-06: 50 Level 0 → 1 conversions, 21 Sep – 6 Oct.
+    - **Counting rule** (`getLevelConversions` in `db/queries.ts`): each student's changes on one day are netted from the first level that day to the last. A promotion undone the same day counts nothing; a net move N → M (M > N) counts once at each boundary N → N+1 … M-1 → M; a net move down counts nothing. A mistake undone on a later day still counts on its original day (accepted).
+    - Route: `GET /api/analytics/level-conversions` (anyone signed in). It returns 503 with a message until `db:migrate` has created the table.
+    - UI: the **Level Conversions** card (`components/LevelConversions.tsx`) in Analytics: counts for the chosen day, the 7 days up to it, and all time, plus a day picker (previous/next/today), a college filter and "My students". Clicking a row lists the students. College and instructor filters use current assignments.
+    - Levels are limited to 0–7 by `CHECK` constraints on both `students` and `level_changes`. Adding a Level 8 means raising both.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
