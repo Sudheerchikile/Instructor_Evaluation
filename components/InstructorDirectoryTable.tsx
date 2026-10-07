@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Search, UserPlus, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Search, UserCheck, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
 import { normalizeTopicValue } from '@/lib/storage';
 import { getStepOptionsForTopic, getTopicOptions } from '@/lib/multiLevelCurriculum';
 import { AddInstructorForm } from '@/components/AddInstructorForm';
+import { AssignStudentsModal } from '@/components/AssignStudentsModal';
 import { InstructorHistoryModal } from '@/components/InstructorHistoryModal';
 
 interface InstructorDirectoryTableProps {
@@ -23,7 +24,8 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [created, setCreated] = useState<CreateInstructorResult | null>(null);
+  const [created, setCreated] = useState<{ result: CreateInstructorResult; kind: 'created' | 'assigned' } | null>(null);
+  const [assignTo, setAssignTo] = useState<InstructorListEntry | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const getLevelNumber = (level: string) => Number((level.match(/\d+/) ?? ['0'])[0]);
@@ -44,9 +46,10 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
     fetchInstructors().then(setInstructors).catch((err: Error) => setError(err.message));
   }, [reloadKey]);
 
-  const handleCreated = (result: CreateInstructorResult) => {
+  const handleSaved = (result: CreateInstructorResult, kind: 'created' | 'assigned') => {
     setShowAdd(false);
-    setCreated(result);
+    setAssignTo(null);
+    setCreated({ result, kind });
     setExpanded(result.instructor.id);
     setReloadKey((k) => k + 1);
     onChanged?.();
@@ -97,15 +100,18 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <div className="font-medium">
-                {created.instructor.name} ({created.instructor.id}) can now sign in with {created.instructor.email}.
+                {created.kind === 'created'
+                  ? `${created.result.instructor.name} (${created.result.instructor.id}) can now sign in with ${created.result.instructor.email}.`
+                  : `Students assigned to ${created.result.instructor.name}.`}
               </div>
               <div className="mt-0.5">
-                {created.assigned.length} student{created.assigned.length === 1 ? '' : 's'} assigned
+                {created.result.assigned.length} student{created.result.assigned.length === 1 ? '' : 's'} assigned
                 {(() => {
                   const moved = new Map<string, number>();
-                  created.assigned.forEach((a) => { if (a.previousInstructor) moved.set(a.previousInstructor, (moved.get(a.previousInstructor) ?? 0) + 1); });
+                  created.result.assigned.forEach((a) => { if (a.previousInstructor) moved.set(a.previousInstructor, (moved.get(a.previousInstructor) ?? 0) + 1); });
                   return moved.size ? ` (moved from ${[...moved.entries()].map(([n, c]) => `${n}: ${c}`).join(', ')})` : '';
-                })()}.
+                })()}
+                {created.result.alreadyAssigned ? `; ${created.result.alreadyAssigned} were already theirs` : ''}.
               </div>
             </div>
           </div>
@@ -113,7 +119,8 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
         </div>
       )}
 
-      {showAdd && <AddInstructorForm students={students} onClose={() => setShowAdd(false)} onCreated={handleCreated} />}
+      {showAdd && <AddInstructorForm students={students} onClose={() => setShowAdd(false)} onCreated={(r) => handleSaved(r, 'created')} />}
+      {assignTo && <AssignStudentsModal instructor={assignTo} students={students} onClose={() => setAssignTo(null)} onAssigned={(r) => handleSaved(r, 'assigned')} />}
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <table className="w-full text-left text-xs">
@@ -123,7 +130,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
               <th className="py-2.5 px-3">Shown in Student List as</th>
               <th className="py-2.5 px-3">Company email</th>
               <th className="py-2.5 px-3 text-right">Students</th>
-              <th className="py-2.5 pl-3 pr-4 text-right">History</th>
+              <th className="py-2.5 pl-3 pr-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 text-zinc-700 dark:divide-zinc-800/60 dark:text-zinc-300">
@@ -150,7 +157,16 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                     <td className="py-2.5 px-3">{inst.firstName}</td>
                     <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.email}</td>
                     <td className="py-2.5 px-3 text-right font-mono">{inst.students.length}</td>
-                    <td className="py-2.5 pl-3 pr-4 text-right">
+                    <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setAssignTo(inst); }}
+                        title={`Assign students to ${inst.name}`}
+                        className="mr-1.5 inline-flex h-7 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Assign students
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setHistoryFor(inst); }}

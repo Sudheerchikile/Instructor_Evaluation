@@ -89,9 +89,11 @@ export interface NewInstructorInput {
   studentIds: string[]; // roll numbers to assign (moved from their current instructor)
 }
 
+// Result of adding an instructor or assigning students to one.
 export interface CreateInstructorResult {
   instructor: InstructorOption & { email: string };
-  assigned: Array<{ id: string; name: string; previousInstructor: string | null }>;
+  assigned: Array<{ id: string; name: string; previousInstructor: string | null; previousInstructorId?: string | null }>;
+  alreadyAssigned?: number; // assigning only: listed students who already belonged to this instructor
 }
 
 // API shape: Instructor List entry, using the instructor's full name.

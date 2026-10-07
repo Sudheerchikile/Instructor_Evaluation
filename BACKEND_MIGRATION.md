@@ -421,6 +421,11 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Route: `GET /api/analytics/level-conversions` (anyone signed in). It returns 503 with a message until `db:migrate` has created the table.
     - UI: the **Level Conversions** card (`components/LevelConversions.tsx`) in Analytics: counts for the chosen day, the 7 days up to it, and all time, plus a day picker (previous/next/today), a college filter and "My students". Clicking a row lists the students. College and instructor filters use current assignments.
     - Levels are limited to 0–7 by `CHECK` constraints on both `students` and `level_changes`. Adding a Level 8 means raising both.
+28. **Assign students to an existing instructor** (2026-10-07). Before this, students could only be assigned when creating a new instructor, so instructors whose accounts already existed (from `db:users`) couldn't get students.
+    - Route: `POST /api/instructors/[id]/students` with `{ studentIds }`, admin only (`assignStudentsToInstructor` in `db/queries.ts`). In one transaction, each listed student moves from their current instructor (or from none). Students already with this instructor are left alone and reported as `alreadyAssigned`. One unknown roll number rejects the whole request. No DB change was needed.
+    - UI: an **Assign students** button on each row of the Instructors page opens `components/AssignStudentsModal.tsx`: paste roll numbers and see a live preview of how many move from whom. The roll-number box and preview are shared with **Add instructor** (`components/RollNumberAssignField.tsx`).
+    - **Add instructor** with an email that already belongs to an instructor now says "<name> already has an account … use Assign students on their row" instead of a generic error.
+    - Past interactions keep their `assigned_instructor_name` snapshot; only future logs use the new instructor.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

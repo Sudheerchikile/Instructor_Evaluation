@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, Loader2, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, Student } from '@/lib/types';
 import { createInstructor } from '@/lib/api';
 import { blockKeyboardSubmit } from '@/lib/forms';
+import { RollNumberAssignField, useAssignmentPreview } from '@/components/RollNumberAssignField';
 
 const MIN_PASSWORD_LENGTH = 8; // must match db/queries.ts
 
@@ -12,11 +13,6 @@ interface AddInstructorFormProps {
   students: Student[]; // all students (admin view), for the live assignment preview
   onClose: () => void;
   onCreated: (result: CreateInstructorResult) => void;
-}
-
-// Roll numbers pasted in any shape: commas, spaces, new lines or tabs (e.g. a column copied from a sheet).
-function parseRollNumbers(text: string): string[] {
-  return Array.from(new Set(text.split(/[\s,;]+/).map((t) => t.trim().toUpperCase()).filter(Boolean)));
 }
 
 export function AddInstructorForm({ students, onClose, onCreated }: AddInstructorFormProps) {
@@ -29,19 +25,7 @@ export function AddInstructorForm({ students, onClose, onCreated }: AddInstructo
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const preview = useMemo(() => {
-    const byId = new Map(students.map((s) => [s.id, s]));
-    const ids = parseRollNumbers(rollText);
-    const found = ids.map((id) => byId.get(id)).filter((s): s is Student => !!s);
-    const missing = ids.filter((id) => !byId.has(id));
-    const fromInstructor = new Map<string, number>();
-    let unassigned = 0;
-    for (const s of found) {
-      if (s.instructorFullName) fromInstructor.set(s.instructorFullName, (fromInstructor.get(s.instructorFullName) ?? 0) + 1);
-      else unassigned++;
-    }
-    return { ids, found, missing, unassigned, fromInstructor: [...fromInstructor.entries()].sort((a, b) => b[1] - a[1]) };
-  }, [rollText, students]);
+  const preview = useAssignmentPreview(students, rollText);
 
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -99,30 +83,7 @@ export function AddInstructorForm({ students, onClose, onCreated }: AddInstructo
             </div>
           </div>
 
-          <div>
-            <label className={label}>Student roll numbers to assign</label>
-            <textarea
-              rows={5}
-              value={rollText}
-              onChange={(e) => setRollText(e.target.value)}
-              placeholder={'Paste roll numbers separated by commas, spaces or new lines\nN24H01B0064, N24H01B0240\nN24H01B0046'}
-              className="w-full rounded-md border border-zinc-200 bg-white p-2.5 font-mono text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
-            />
-            {preview.ids.length > 0 && (
-              <div className="mt-2 space-y-1 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-[11px] text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
-                <div className="font-medium text-zinc-800 dark:text-zinc-200">
-                  {preview.found.length} student{preview.found.length === 1 ? '' : 's'} will be assigned to this instructor
-                </div>
-                {preview.fromInstructor.map(([from, count]) => (
-                  <div key={from}>• {count} moved from {from} <span className="text-zinc-400">(their count goes down by {count})</span></div>
-                ))}
-                {preview.unassigned > 0 && <div>• {preview.unassigned} currently unassigned</div>}
-                {preview.missing.length > 0 && (
-                  <div className="text-rose-600 dark:text-rose-400">• Not found: {preview.missing.join(', ')}</div>
-                )}
-              </div>
-            )}
-          </div>
+          <RollNumberAssignField value={rollText} onChange={setRollText} preview={preview} targetName="this instructor" />
 
           {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
 

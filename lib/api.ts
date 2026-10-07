@@ -33,7 +33,10 @@ export const fetchInstructorOptions = () => request<InstructorOption[]>('/api/in
 export const createInstructor = (input: NewInstructorInput) =>
   request<CreateInstructorResult>('/api/instructors', { method: 'POST', body: JSON.stringify(input) });
 
-export const fetchStudents = () => request<Student[]>('/api/students');
+export const assignStudentsToInstructor = (instructorId: string, studentIds: string[]) =>
+  request<CreateInstructorResult>(`/api/instructors/${encodeURIComponent(instructorId)}/students`, { method: 'POST', body: JSON.stringify({ studentIds }) });
+
+export const fetchStudents =() => request<Student[]>('/api/students');
 
 export const fetchInteractions = () => request<InteractionLog[]>('/api/interactions');
 

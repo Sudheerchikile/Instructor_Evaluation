@@ -407,7 +407,7 @@ export async function createInstructor(input: NewInstructorInput): Promise<Creat
   const firstName = (input.firstName || '').trim().replace(/\s+/g, ' ');
   const email = (input.email || '').trim().toLowerCase();
   const password = input.password || '';
-  const studentIds = Array.from(new Set((input.studentIds || []).map((id) => String(id).trim().toUpperCase()).filter(Boolean)));
+  const studentIds = cleanRollNumbers(input.studentIds);
 
   if (name.length < 2) throw new ValidationError("Enter the instructor's full name.");
   if (!firstName) throw new ValidationError('Enter the name to show in the Student List.');
@@ -420,10 +420,11 @@ export async function createInstructor(input: NewInstructorInput): Promise<Creat
     // Serialise instructor creation so two admins can't take the same new id.
     await client.query('LOCK TABLE instructors IN SHARE ROW EXCLUSIVE MODE');
 
-    const clash = await client.query<{ email: string }>(
-      'SELECT email FROM instructors WHERE email = $1 UNION SELECT email FROM users WHERE email = $1',
-      [email]
-    );
+    const existing = await client.query<{ full_name: string }>('SELECT full_name FROM instructors WHERE email = $1', [email]);
+    if (existing.rowCount) {
+      throw new ValidationError(`${existing.rows[0].full_name} already has an account (${email}). To give them students, use "Assign students" on their row.`);
+    }
+    const clash = await client.query<{ email: string }>('SELECT email FROM users WHERE email = $1', [email]);
     if (clash.rowCount) throw new ValidationError(`${email} is already used by another account.`);
 
     const directory = await loadDirectory(client);
@@ -432,14 +433,7 @@ export async function createInstructor(input: NewInstructorInput): Promise<Creat
       throw new ValidationError(`"${firstName}" is already shown for ${sameName.name}. Use a distinct Student List name (e.g. "${firstName}-2").`);
     }
 
-    const found = await client.query<{ id: string; name: string; previous: string | null }>(
-      `SELECT s.id, s.name, i.full_name AS previous
-       FROM students s LEFT JOIN instructors i ON i.id = s.instructor_id
-       WHERE s.id = ANY($1::text[])`,
-      [studentIds]
-    );
-    const missing = studentIds.filter((id) => !found.rows.some((r) => r.id === id));
-    if (missing.length) throw new ValidationError(`These roll numbers are not in the database: ${missing.join(', ')}`);
+    const found = await findStudentsToAssign(client, studentIds);
 
     const { rows: [{ next }] } = await client.query<{ next: number }>(
       "SELECT COALESCE(MAX(substring(id from '^INS([0-9]+)$')::int), 0) + 1 AS next FROM instructors"
@@ -454,20 +448,70 @@ export async function createInstructor(input: NewInstructorInput): Promise<Creat
       "INSERT INTO users (id, instructor_id, name, email, role, password_hash) VALUES ($1, $1, $2, $3, 'instructor', $4)",
       [id, name, email, await hashPassword(password)]
     );
-    if (studentIds.length) {
-      await client.query(
-        `UPDATE students SET instructor_id = $1, instructor_match = 'matched', instructor_raw = $2, updated_at = now()
-         WHERE id = ANY($3::text[])`,
-        [id, firstName, studentIds]
-      );
-    }
+    await moveStudents(client, id, firstName, studentIds);
+    await client.query('COMMIT');
+
+    return { instructor: { id, name, firstName, email }, assigned: found };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Roll numbers → students with their current instructor (full name). Any unknown roll number is an error.
+async function findStudentsToAssign(client: PoolClient, studentIds: string[]): Promise<CreateInstructorResult['assigned']> {
+  const { rows } = await client.query<{ id: string; name: string; previous: string | null; previous_id: string | null }>(
+    `SELECT s.id, s.name, i.full_name AS previous, i.id AS previous_id
+     FROM students s LEFT JOIN instructors i ON i.id = s.instructor_id
+     WHERE s.id = ANY($1::text[])`,
+    [studentIds]
+  );
+  const missing = studentIds.filter((id) => !rows.some((r) => r.id === id));
+  if (missing.length) throw new ValidationError(`These roll numbers are not in the database: ${missing.join(', ')}`);
+  return rows
+    .map((r) => ({ id: r.id, name: r.name, previousInstructor: r.previous, previousInstructorId: r.previous_id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// A student has exactly one instructor, so assigning moves them from whoever had them.
+async function moveStudents(client: PoolClient, instructorId: string, firstName: string, studentIds: string[]) {
+  if (!studentIds.length) return;
+  await client.query(
+    `UPDATE students SET instructor_id = $1, instructor_match = 'matched', instructor_raw = $2, updated_at = now()
+     WHERE id = ANY($3::text[])`,
+    [instructorId, firstName, studentIds]
+  );
+}
+
+const cleanRollNumbers = (ids: string[] | undefined) =>
+  Array.from(new Set((ids || []).map((id) => String(id).trim().toUpperCase()).filter(Boolean)));
+
+// Admin: assign students to an existing instructor, moving them from their current instructor, in one
+// transaction. Students who already belong to this instructor are left as they are.
+export async function assignStudentsToInstructor(instructorId: string, rollNumbers: string[]): Promise<CreateInstructorResult> {
+  const studentIds = cleanRollNumbers(rollNumbers);
+  if (!studentIds.length) throw new ValidationError('Enter at least one roll number.');
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [instructor] } = await client.query<{ id: string; first_name: string; full_name: string; email: string }>(
+      'SELECT id, first_name, full_name, email FROM instructors WHERE id = $1 FOR UPDATE',
+      [instructorId]
+    );
+    if (!instructor) throw new ValidationError('Instructor not found.');
+
+    const found = await findStudentsToAssign(client, studentIds);
+    const toMove = found.filter((s) => s.previousInstructorId !== instructor.id);
+    await moveStudents(client, instructor.id, instructor.first_name, toMove.map((s) => s.id));
     await client.query('COMMIT');
 
     return {
-      instructor: { id, name, firstName, email },
-      assigned: found.rows
-        .map((r) => ({ id: r.id, name: r.name, previousInstructor: r.previous }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      instructor: { id: instructor.id, name: instructor.full_name, firstName: instructor.first_name, email: instructor.email },
+      assigned: toMove,
+      alreadyAssigned: found.length - toMove.length,
     };
   } catch (err) {
     await client.query('ROLLBACK');
