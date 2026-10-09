@@ -426,6 +426,15 @@ Because the data lives separately in each browser (§1), there is no single curr
     - UI: an **Assign students** button on each row of the Instructors page opens `components/AssignStudentsModal.tsx`: paste roll numbers and see a live preview of how many move from whom. The roll-number box and preview are shared with **Add instructor** (`components/RollNumberAssignField.tsx`).
     - **Add instructor** with an email that already belongs to an instructor now says "<name> already has an account … use Assign students on their row" instead of a generic error.
     - Past interactions keep their `assigned_instructor_name` snapshot; only future logs use the new instructor.
+29. **Student sheet sync after the KT** (2026-10-08, a one-off data change, no code). The updated Student List (`db/students.local.csv`, git-ignored, tab-separated: Instructor, NIAT ID, Student Name, Hall No., Degree, Section) was applied in one transaction after a read-only report:
+    - **250 existing students updated:** 240 instructor moves, 9 halls (`Hall 11` → `Cabin 1`), 3 names (double spaces) and 1 section (`s011` → `S011`). Level, topic, step, status and interactions were not touched.
+    - **69 new students** created at Level 0 / Introduction / Introduction, "Pending Evaluation": 14 with an instructor and 55 "Yet to add" rows, which have no instructor (`instructor_id` NULL, `instructor_raw` empty) and no hall. A blank sheet value never overwrote an existing one.
+    - **Not applied:** the sheet lists 50 students under Abhinav Sharma, Lomesh Patil and Rajveer Sharma, who had no accounts yet, so those students kept their current instructor. 8 students in the DB but not in the sheet were left as they were (all Level 0, no interactions): N24H01B0056, N24H01B0303, N24H01A0012, N24H01A0218, N24H01A0104, N24H01A0610, N24H01A0400, N24H01A0461.
+    - Total after the sync: 961 students.
+30. **Unassigned students are easy to find** (2026-10-08).
+    - Instructors page: a panel "N students have no instructor yet" with the list (name, roll number, college, section, hall) and **Copy roll numbers**, to paste into **Assign students**. It is hidden when every student has an instructor.
+    - Student directory: an **Unassigned** badge (instead of "unmatched") for students with no instructor, and a new **Instructor** filter with an "Unassigned (N)" option.
+    - The **Hall** filter now lists the halls found in the data (Hall 1–15, Cabin 1, "No hall"); it was hard-coded to Hall 1–14.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

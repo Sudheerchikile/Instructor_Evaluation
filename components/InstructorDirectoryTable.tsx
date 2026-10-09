@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Search, UserCheck, UserPlus, X } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, ChevronRight, Copy, History, Loader2, Search, UserCheck, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
 import { normalizeTopicValue } from '@/lib/storage';
@@ -27,6 +27,23 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
   const [created, setCreated] = useState<{ result: CreateInstructorResult; kind: 'created' | 'assigned' } | null>(null);
   const [assignTo, setAssignTo] = useState<InstructorListEntry | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Students with no instructor (e.g. "Yet to add" in the sheet), so the admin can find and assign them.
+  const unassigned = useMemo(
+    () => students.filter((s) => !s.instructorId).sort((a, b) => a.degree.localeCompare(b.degree) || a.section.localeCompare(b.section) || a.name.localeCompare(b.name)),
+    [students]
+  );
+  const copyUnassigned = async () => {
+    try {
+      await navigator.clipboard.writeText(unassigned.map((s) => s.id).join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setShowUnassigned(true); // clipboard blocked: show the list so the roll numbers can be copied by hand
+    }
+  };
 
   const getLevelNumber = (level: string) => Number((level.match(/\d+/) ?? ['0'])[0]);
   const getTopicProgressionIndex = (level: string, topic?: string) => {
@@ -116,6 +133,50 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
             </div>
           </div>
           <button type="button" onClick={() => setCreated(null)} title="Dismiss" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 cursor-pointer"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
+      {unassigned.length > 0 && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50/60 text-xs dark:border-sky-900/60 dark:bg-sky-950/20">
+          <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <button type="button" onClick={() => setShowUnassigned((v) => !v)} className="inline-flex items-center gap-1.5 text-left font-medium text-sky-900 dark:text-sky-200 cursor-pointer">
+              {showUnassigned ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              <span className="font-mono">{unassigned.length}</span> student{unassigned.length === 1 ? ' has' : 's have'} no instructor yet
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-sky-800/80 dark:text-sky-300/80">Copy the roll numbers, then paste them into Assign students on an instructor&apos;s row.</span>
+              <button type="button" onClick={copyUnassigned} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-sky-200 bg-white px-2 text-[11px] font-medium text-sky-800 hover:bg-sky-50 dark:border-sky-900 dark:bg-zinc-900 dark:text-sky-300 dark:hover:bg-zinc-800 cursor-pointer">
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'Copied' : 'Copy roll numbers'}
+              </button>
+            </div>
+          </div>
+          {showUnassigned && (
+            <div className="max-h-72 overflow-y-auto border-t border-sky-200 px-4 py-2 dark:border-sky-900/60">
+              <table className="w-full text-[11px]">
+                <thead className="sticky top-0 bg-sky-50 text-zinc-500 dark:bg-zinc-950">
+                  <tr>
+                    <th className="py-1 pr-3 text-left font-medium">Student</th>
+                    <th className="py-1 px-3 text-left font-medium">Roll number</th>
+                    <th className="py-1 px-3 text-left font-medium">College</th>
+                    <th className="py-1 px-3 text-left font-medium">Section</th>
+                    <th className="py-1 pl-3 text-left font-medium">Hall</th>
+                  </tr>
+                </thead>
+                <tbody className="text-zinc-700 dark:text-zinc-300">
+                  {unassigned.map((s) => (
+                    <tr key={s.id}>
+                      <td className="py-1 pr-3 text-zinc-900 dark:text-zinc-100">{s.name}</td>
+                      <td className="py-1 px-3 font-mono select-all">{s.id}</td>
+                      <td className="py-1 px-3">{s.degree}</td>
+                      <td className="py-1 px-3">{s.section}</td>
+                      <td className="py-1 pl-3">{s.hall || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

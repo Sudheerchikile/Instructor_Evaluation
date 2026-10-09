@@ -43,6 +43,7 @@ export function StudentRosterTable({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [hallFilter, setHallFilter] = useState('ALL');
   const [topicFilter, setTopicFilter] = useState('ALL');
+  const [instructorFilter, setInstructorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED' or an instructor id (directory only)
   const [sortMode, setSortMode] = useState<'natural' | 'top-performing'>(isAllDirectory ? 'top-performing' : 'natural');
   const [page, setPage] = useState(1);
   const pageSize = 15;
@@ -96,6 +97,7 @@ export function StudentRosterTable({
       if (levelFilter !== 'ALL' && s.level !== levelFilter) return false;
       if (degreeFilter !== 'ALL' && s.degree !== degreeFilter) return false;
       if (hallFilter !== 'ALL' && s.hall !== hallFilter) return false;
+      if (instructorFilter === 'UNASSIGNED' ? !!s.instructorId : instructorFilter !== 'ALL' && s.instructorId !== instructorFilter) return false;
       if (topicFilter !== 'ALL' && normalizeTopicValue(s.currentTopic) !== normalizeTopicValue(topicFilter)) return false;
 
       if (statusFilter !== 'ALL' && statusKeyOf(s) !== statusFilter) return false;
@@ -107,7 +109,19 @@ export function StudentRosterTable({
       return [...matches].sort(compareStudentProgress);
     }
     return matches;
-  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter, sortMode]);
+  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter, instructorFilter, sortMode]);
+
+  // Filter options come from the data, so new halls (e.g. "Cabin 1") and instructors appear automatically.
+  const hallOptions = useMemo(
+    () => Array.from(new Set(students.map((s) => s.hall))).sort((a, b) => (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, undefined, { numeric: true })),
+    [students]
+  );
+  const instructorOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const s of students) if (s.instructorId) byId.set(s.instructorId, s.instructorFullName ?? s.instructor);
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [students]);
+  const unassignedCount = useMemo(() => students.filter((s) => !s.instructorId).length, [students]);
 
   const scoped = useMemo(() => {
     const base = isAllDirectory || currentInstructor === 'Admin'
@@ -263,12 +277,28 @@ export function StudentRosterTable({
             className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors hidden md:block"
           >
             <option value="ALL">All Halls</option>
-            {Array.from({ length: 14 }).map((_, i) => (
-              <option key={i} value={`Hall ${i + 1}`}>
-                Hall {i + 1}
-              </option>
+            {hallOptions.map((hall) => (
+              <option key={hall || 'none'} value={hall}>{hall || 'No hall'}</option>
             ))}
           </select>
+
+          {isAllDirectory && (
+            <select
+              value={instructorFilter}
+              onChange={(e) => {
+                setInstructorFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Instructor"
+              className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <option value="ALL">All Instructors</option>
+              <option value="UNASSIGNED">Unassigned ({unassignedCount})</option>
+              {instructorOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          )}
 
           {!isAllDirectory && (
             <select
@@ -346,7 +376,14 @@ export function StudentRosterTable({
                         >
                           {student.instructor}
                         </span>
-                        {student.instructorMatch && student.instructorMatch !== 'matched' && (
+                        {!student.instructorId && !student.instructor?.trim() ? (
+                          <span
+                            className="rounded px-1 py-0.5 text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
+                            title="No instructor yet. An admin can assign one with Assign students on the Instructors page."
+                          >
+                            Unassigned
+                          </span>
+                        ) : student.instructorMatch && student.instructorMatch !== 'matched' && (
                           <span
                             className="ml-1.5 rounded px-1 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
                             title={student.instructorMatch === 'ambiguous' ? 'Several instructors share this first name; add an alias or email to identify the right one' : 'No instructor in the directory matches this name'}
