@@ -245,7 +245,7 @@ export function InteractionLogsTable({
                   ['Interaction Date', selectedLog.date],
                   ['Status', selectedLog.statusPostInteraction],
                   ['Rating', `${selectedLog.rating} / 5`],
-                  ['Level & Step (when logged)', [selectedLog.level, selectedLog.currentStep].filter(Boolean).join(' • ') || '—'],
+                  ['Level, Subtopic & Step (when logged)', [selectedLog.level, selectedLog.currentSubtopic, selectedLog.currentStep].filter(Boolean).join(' • ') || '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
                     <span className="mb-1 block text-[11px] font-medium text-zinc-500">{label}</span>

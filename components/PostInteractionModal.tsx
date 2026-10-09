@@ -188,6 +188,7 @@ export function PostInteractionModal({
       // An edit keeps the level/step snapshot and creation time of the original log.
       level: editing ? editing.level : student.level,
       currentStep: editing ? editing.currentStep : student.currentStep,
+      currentSubtopic: editing ? editing.currentSubtopic ?? null : student.currentSubtopic ?? null,
       date: interactionDate,
       createdAt: editing?.createdAt ?? new Date().toISOString()
     };

@@ -1,4 +1,4 @@
-// Single source for levels -> topics -> steps. Used by the student table dropdowns and by the API to validate updates.
+// Single source for levels -> topics -> subtopics -> steps. Used by the student table dropdowns and by the API to validate updates.
 
 export const LEVELS = Array.from({ length: 8 }, (_, index) => `Level ${index}`);
 
@@ -29,6 +29,28 @@ export const LEVEL_TOPIC_MAP: Record<string, string[]> = {
 };
 
 export const ALL_TOPICS = Array.from(new Set(Object.values(LEVEL_TOPIC_MAP).flat()));
+
+// Subtopics, in teaching order, keyed by "Level N|Topic". Each subtopic has its own run of steps, so changing the
+// subtopic restarts the step. Topics not listed have no subtopics yet (the dropdown shows "—").
+const SUBTOPIC_MAP: Record<string, string[]> = {
+  'Level 1|Maths': ['LCM & GCD', 'Prime Numbers', 'Digit Manipulation', 'Fast Exponentiation'],
+  'Level 1|STL': ['Set / Unordered Set', 'Map / Unordered Map', 'Stack and Queue'],
+};
+
+export function getSubtopicOptions(level: string, topic: string | undefined): string[] {
+  return SUBTOPIC_MAP[`${level}|${(topic || '').trim()}`] ?? [];
+}
+
+// The subtopic to store for a topic: the given one when it belongs to the topic, else the topic's first
+// subtopic, or null when the topic has none.
+export function coerceSubtopic(level: string, topic: string, subtopic: string | null | undefined): string | null {
+  const options = getSubtopicOptions(level, topic);
+  if (!options.length) return null;
+  return subtopic && options.includes(subtopic) ? subtopic : options[0];
+}
+
+// "Level 3" → "3", for narrow table columns.
+export const levelShortLabel = (level: string) => level.replace(/^Level\s+/, '');
 
 // Level 1 topics stop at medium questions.
 const TOPICS_UP_TO_MEDIUM = new Set(LEVEL_TOPIC_MAP['Level 1']);

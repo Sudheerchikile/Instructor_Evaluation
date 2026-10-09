@@ -5,7 +5,7 @@ import { Check, CheckCircle2, ChevronDown, ChevronRight, Copy, History, Loader2,
 import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
 import { normalizeTopicValue } from '@/lib/storage';
-import { getStepOptionsForTopic, getTopicOptions } from '@/lib/multiLevelCurriculum';
+import { getStepOptionsForTopic, getSubtopicOptions, getTopicOptions, levelShortLabel } from '@/lib/multiLevelCurriculum';
 import { AddInstructorForm } from '@/components/AddInstructorForm';
 import { AssignStudentsModal } from '@/components/AssignStudentsModal';
 import { InstructorHistoryModal } from '@/components/InstructorHistoryModal';
@@ -204,6 +204,10 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                 const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
                 if (topicDiff !== 0) return topicDiff;
 
+                const subtopicDiff = getSubtopicOptions(b.level, b.currentTopic).indexOf(b.currentSubtopic ?? '')
+                  - getSubtopicOptions(a.level, a.currentTopic).indexOf(a.currentSubtopic ?? '');
+                if (subtopicDiff !== 0) return subtopicDiff;
+
                 return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
               });
               return (
@@ -250,6 +254,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                                 <th className="py-1 pr-3 text-left font-medium">Student</th>
                                 <th className="py-1 px-3 text-left font-medium">Level</th>
                                 <th className="py-1 px-3 text-left font-medium">Current Topic</th>
+                                <th className="py-1 px-3 text-left font-medium">Subtopic</th>
                                 <th className="py-1 px-3 text-left font-medium">Current Step</th>
                                 <th className="py-1 pl-3 text-right font-medium">Last Interaction</th>
                               </tr>
@@ -258,8 +263,9 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                               {rankedStudents.map((s) => (
                                 <tr key={s.id}>
                                   <td className="py-1 pr-3 text-zinc-900 dark:text-zinc-100">{s.name}</td>
-                                  <td className="py-1 px-3 font-mono">{s.level}</td>
+                                  <td className="py-1 px-3 font-mono" title={s.level}>{levelShortLabel(s.level)}</td>
                                   <td className="py-1 px-3">{s.currentTopic}</td>
+                                  <td className="py-1 px-3">{s.currentSubtopic ?? '—'}</td>
                                   <td className="py-1 px-3">{s.currentStep}</td>
                                   <td className="py-1 pl-3 text-right font-mono">{s.lastInteractionDate ?? '—'}</td>
                                 </tr>

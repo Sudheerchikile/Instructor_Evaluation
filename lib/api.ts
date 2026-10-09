@@ -42,7 +42,7 @@ export const fetchInteractions = () => request<InteractionLog[]>('/api/interacti
 
 export const fetchLevelConversions = () => request<LevelConversion[]>('/api/analytics/level-conversions');
 
-export const updateStudentProgress = (id: string, patch: { level?: string; currentTopic?: string; currentStep?: string }) =>
+export const updateStudentProgress = (id: string, patch: { level?: string; currentTopic?: string; currentSubtopic?: string | null; currentStep?: string }) =>
   request<Student>(`/api/students/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
 export const updateInteraction = (id: string, patch: Partial<InteractionLog>) =>

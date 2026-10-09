@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Student, InteractionLog, InstructorUser, InstructorOption } from "@/lib/types";
 import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
-import { coerceStep, getDefaultStepForLevel, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
+import { coerceStep, coerceSubtopic, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
 import { ApiError, createInteraction, deleteInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
 import { InstructorDirectoryTable } from "@/components/InstructorDirectoryTable";
@@ -154,14 +154,19 @@ export default function Home() {
 
   // Optimistic update: the change shows at once in "My Students" and the directory, then is saved to the DB.
   // The server's copy replaces it on success; on failure the previous values are restored.
-  const saveProgress = (studentId: string, patch: { level?: string; currentTopic?: string; currentStep?: string }) => {
+  // Same rules as the server: a level or topic change starts the topic's first subtopic, and a subtopic change
+  // restarts the step (each subtopic has its own run of steps).
+  const saveProgress = (studentId: string, patch: { level?: string; currentTopic?: string; currentSubtopic?: string; currentStep?: string }) => {
     const previous = students.find((s) => s.id === studentId);
     if (!previous) return;
 
     const level = patch.level ?? previous.level;
     const currentTopic = patch.currentTopic ?? (patch.level ? getDefaultTopicForLevel(level) : previous.currentTopic ?? getDefaultTopicForLevel(level));
-    const currentStep = patch.currentStep ?? (patch.level ? getDefaultStepForLevel(level) : coerceStep(level, currentTopic, previous.currentStep));
-    const next = { level, currentTopic, currentStep };
+    const topicChanged = !!patch.level || currentTopic !== previous.currentTopic;
+    const currentSubtopic = coerceSubtopic(level, currentTopic, patch.currentSubtopic ?? (topicChanged ? undefined : previous.currentSubtopic));
+    const restartStep = topicChanged || currentSubtopic !== (previous.currentSubtopic ?? null);
+    const currentStep = patch.currentStep ?? coerceStep(level, currentTopic, restartStep ? undefined : previous.currentStep);
+    const next = { level, currentTopic, currentSubtopic, currentStep };
 
     setDataError(null);
     replaceStudent({ ...previous, ...next });
@@ -175,6 +180,7 @@ export default function Home() {
   const handleUpdateStudentLevel = (studentId: string, nextLevel: string) => saveProgress(studentId, { level: nextLevel });
   const handleUpdateStudentStep = (studentId: string, nextStep: string) => saveProgress(studentId, { currentStep: nextStep });
   const handleUpdateStudentTopic = (studentId: string, nextTopic: string) => saveProgress(studentId, { currentTopic: nextTopic });
+  const handleUpdateStudentSubtopic = (studentId: string, nextSubtopic: string) => saveProgress(studentId, { currentSubtopic: nextSubtopic });
   const handleSelectInstructor = () => {
     setActiveTab("analytics");
   };
@@ -223,7 +229,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Students assigned to {currentInstructor}</h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{assignedCount} candidates assigned to you. Only you can update their level, topic, step and interactions.</p>
             </div>
-            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={false} />
+            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} onUpdateStudentSubtopic={handleUpdateStudentSubtopic} isAllDirectory={false} />
           </div>
         )}
         {activeTab === "all-students" && (
@@ -232,7 +238,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manager Dashboard <span className="text-sm font-normal text-zinc-400">{students.length} candidates</span></h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Full student directory with assigned instructor, current level, degree, section, and exam hall details for management review.</p>
             </div>
-            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} isAllDirectory={true} />
+            <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} onUpdateStudentSubtopic={handleUpdateStudentSubtopic} isAllDirectory={true} />
           </div>
         )}
         {activeTab === "instructors" && isAdmin && (

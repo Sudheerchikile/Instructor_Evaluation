@@ -10,6 +10,7 @@ export interface Student {
   level: string;
   currentStep?: string;
   currentTopic?: string;
+  currentSubtopic?: string | null; // null when the topic has no subtopics
   hall: string;
   instructor: string;            // Student List display: instructor FIRST NAME only (raw value when not matched)
   interactionCount: number;
@@ -53,6 +54,7 @@ export interface InteractionLog {
   interactionRound: number;
   level?: string;        // student's level when the interaction was logged
   currentStep?: string;  // student's step when the interaction was logged
+  currentSubtopic?: string | null; // student's subtopic when the interaction was logged
   date: string;
   createdAt: string;
   createdBy?: string | null;  // user id of whoever logged it
@@ -102,7 +104,7 @@ export interface InstructorListEntry {
   firstName: string;
   name: string;          // full name
   email: string;
-  students: Array<Pick<Student, 'id' | 'name' | 'level' | 'currentTopic' | 'currentStep' | 'lastInteractionDate'>>;
+  students: Array<Pick<Student, 'id' | 'name' | 'level' | 'currentTopic' | 'currentSubtopic' | 'currentStep' | 'lastInteractionDate'>>;
 }
 
 export interface QuestionItem {

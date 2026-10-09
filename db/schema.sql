@@ -68,6 +68,22 @@ CREATE INDEX IF NOT EXISTS students_instructor_idx ON students (instructor_id);
 -- New students start at Level 0 / Introduction / Introduction.
 ALTER TABLE students ALTER COLUMN current_topic SET DEFAULT 'Introduction';
 ALTER TABLE students ALTER COLUMN status SET DEFAULT 'Pending Evaluation';
+-- Subtopic within the current topic (lib/multiLevelCurriculum.ts); NULL for topics without subtopics.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS current_subtopic TEXT;
+
+-- A topic change clears the subtopic unless the same update sets a new one, so a stale subtopic can't
+-- survive a topic change made by any code path (including app builds that don't know about subtopics).
+CREATE OR REPLACE FUNCTION clear_subtopic_on_topic_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.current_topic IS DISTINCT FROM OLD.current_topic AND NEW.current_subtopic IS NOT DISTINCT FROM OLD.current_subtopic THEN
+    NEW.current_subtopic := NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS students_clear_subtopic ON students;
+CREATE TRIGGER students_clear_subtopic
+  BEFORE UPDATE OF current_topic ON students
+  FOR EACH ROW EXECUTE FUNCTION clear_subtopic_on_topic_change();
 
 -- Interaction / feedback history. Field names mirror InteractionLog in lib/types.ts.
 CREATE TABLE IF NOT EXISTS interactions (
@@ -102,6 +118,8 @@ CREATE INDEX IF NOT EXISTS interactions_date_idx ON interactions (date);
 -- Edit history: last edit time and who made it (no FK, so removing a login never blocks this).
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_by TEXT;
+-- Student's subtopic at log time (NULL for topics without subtopics and for older logs).
+ALTER TABLE interactions ADD COLUMN IF NOT EXISTS current_subtopic TEXT;
 
 -- Deleted interactions (duplicates, wrong details). A delete moves the row here, so every query, count and
 -- status (all read `interactions`) drops it with no extra filter. `data` is the full row as JSON, so a
@@ -121,7 +139,9 @@ CREATE INDEX IF NOT EXISTS deleted_interactions_student_idx ON deleted_interacti
 -- level_status is the student's standing at their CURRENT level, from the latest interaction logged at
 -- that level (older logs without a level were all Level 0). No interaction at the current level means
 -- 'Pending Evaluation', so a promoted student is pending again until evaluated at the new level.
-CREATE OR REPLACE VIEW student_overview AS
+-- Dropped and re-created (not CREATE OR REPLACE): s.* gains columns over time, which would move later columns.
+DROP VIEW IF EXISTS student_overview;
+CREATE VIEW student_overview AS
 SELECT
   s.*,
   i.first_name  AS instructor_first_name,
@@ -208,4 +228,13 @@ SELECT l.student_id, l.lvl, COALESCE(l.next_lvl, s.level), l.date, l.created_at,
 FROM logs l
 JOIN students s ON s.id = l.student_id
 WHERE COALESCE(l.next_lvl, s.level) <> l.lvl
+  AND EXISTS (SELECT 1 FROM run);
+
+-- One-time: students already on a topic that now has subtopics start at its first subtopic (decided 2026-10-09).
+-- Keep in step with SUBTOPIC_MAP in lib/multiLevelCurriculum.ts.
+WITH run AS (
+  INSERT INTO data_migrations (name) VALUES ('subtopics_default_level1') ON CONFLICT (name) DO NOTHING RETURNING name
+)
+UPDATE students SET current_subtopic = CASE current_topic WHEN 'Maths' THEN 'LCM & GCD' WHEN 'STL' THEN 'Set / Unordered Set' END
+WHERE level = 1 AND current_topic IN ('Maths', 'STL') AND current_subtopic IS NULL
   AND EXISTS (SELECT 1 FROM run);

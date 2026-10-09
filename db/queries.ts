@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { getPool } from './client';
 import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
-import { LEVELS, coerceStep, getDefaultTopicForLevel, getStepOptionsForTopic, getTopicOptions } from '../lib/multiLevelCurriculum';
+import { LEVELS, coerceStep, coerceSubtopic, getDefaultTopicForLevel, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
 import { hashPassword } from './auth';
 
@@ -32,6 +32,7 @@ const INTERACTION_JSON = `
     'assignedInstructorName', it.assigned_instructor_name,
     'level', CASE WHEN it.level IS NULL THEN NULL ELSE 'Level ' || it.level END,
     'currentStep', it.current_step,
+    'currentSubtopic', it.current_subtopic,
     'topics', it.topics,
     'statusPostInteraction', it.status_post_interaction,
     'rating', it.rating::float,
@@ -64,6 +65,7 @@ interface StudentOverviewRow {
   instructor_email: string | null;
   level: number;
   current_topic: string;
+  current_subtopic: string | null;
   current_step: string;
   status: string;
   interaction_count: number;
@@ -82,6 +84,7 @@ function toStudent(row: StudentOverviewRow): Student {
     hall: row.hall,
     level: `Level ${row.level}`,
     currentTopic: row.current_topic,
+    currentSubtopic: row.current_subtopic,
     currentStep: row.current_step,
     status: row.level_status, // standing at the current level (see student_overview)
     interactionCount: row.interaction_count,
@@ -105,11 +108,12 @@ async function getStudent(id: string, client?: PoolClient): Promise<Student | nu
   return rows[0] ? toStudent(rows[0]) : null;
 }
 
-// Level / topic / step change from the "My Students" page. Invalid combinations are rejected, and a
-// level change without an explicit topic resets topic and step to that level's defaults.
+// Level / topic / subtopic / step change from the "My Students" page. Invalid combinations are rejected. A level
+// change without an explicit topic resets topic, subtopic and step to that level's defaults; a topic change resets
+// subtopic and step; a subtopic change restarts the step (each subtopic has its own run of steps).
 export async function updateStudentProgress(
   id: string,
-  patch: { level?: string; currentTopic?: string; currentStep?: string },
+  patch: { level?: string; currentTopic?: string; currentSubtopic?: string | null; currentStep?: string },
   actor: InstructorUser
 ): Promise<Student | null> {
   const current = await getStudent(id);
@@ -124,7 +128,16 @@ export async function updateStudentProgress(
   if (!getTopicOptions(level).includes(topic)) throw new ValidationError(`Topic "${topic}" is not part of ${level}.`);
   const topicChanged = topic !== current.currentTopic;
 
-  const step = patch.currentStep ?? (levelChanged || topicChanged ? coerceStep(level, topic, undefined) : coerceStep(level, topic, current.currentStep));
+  const subtopicOptions = getSubtopicOptions(level, topic);
+  const subtopic = patch.currentSubtopic !== undefined
+    ? patch.currentSubtopic || null
+    : coerceSubtopic(level, topic, levelChanged || topicChanged ? undefined : current.currentSubtopic);
+  if (subtopic ? !subtopicOptions.includes(subtopic) : subtopicOptions.length > 0) {
+    throw new ValidationError(subtopic ? `Subtopic "${subtopic}" is not part of ${topic}.` : `Choose a subtopic for ${topic}.`);
+  }
+  const subtopicChanged = subtopic !== (current.currentSubtopic ?? null);
+
+  const step = patch.currentStep ?? (levelChanged || topicChanged || subtopicChanged ? coerceStep(level, topic, undefined) : coerceStep(level, topic, current.currentStep));
   if (!getStepOptionsForTopic(level, topic).includes(step)) throw new ValidationError(`Step "${step}" is not valid for ${topic}.`);
 
   // A level change is recorded in level_changes by a DB trigger; app.user_id tells it who made the change.
@@ -133,8 +146,8 @@ export async function updateStudentProgress(
     await client.query('BEGIN');
     await client.query("SELECT set_config('app.user_id', $1, true)", [actor.id]);
     await client.query(
-      'UPDATE students SET level = $2, current_topic = $3, current_step = $4, updated_at = now() WHERE id = $1',
-      [id, levelNumber(level), topic, step]
+      'UPDATE students SET level = $2, current_topic = $3, current_subtopic = $4, current_step = $5, updated_at = now() WHERE id = $1',
+      [id, levelNumber(level), topic, subtopic, step]
     );
     await client.query('COMMIT');
   } catch (err) {
@@ -189,7 +202,7 @@ async function loadDirectory(client: PoolClient): Promise<DirectoryInstructor[]>
 export async function insertInteraction(
   client: PoolClient,
   log: InteractionLog,
-  student: { instructorId?: string | null; level?: string; currentStep?: string },
+  student: { instructorId?: string | null; level?: string; currentSubtopic?: string | null; currentStep?: string },
   options: { skipExisting?: boolean; createdBy?: string } = {}
 ): Promise<boolean> {
   const directory = await loadDirectory(client);
@@ -201,8 +214,8 @@ export async function insertInteraction(
     `INSERT INTO interactions (id, student_id, student_name, instructor_name, instructor_email, taken_by_instructor_id,
        assigned_instructor_id, assigned_instructor_name, level, current_step, topics, status_post_interaction, rating,
        questions_asked, remarks, performed_well, improvement_areas, tweaked_questions, action_items, meet_recording,
-       granola_transcript, interaction_round, date, created_at, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+       granola_transcript, interaction_round, date, created_at, created_by, current_subtopic)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
      ${options.skipExisting ? 'ON CONFLICT (id) DO NOTHING' : ''}`,
     [
       log.id, log.studentId, log.studentName, log.instructorName || '', log.instructorEmail ?? null, takenBy?.id ?? null,
@@ -213,6 +226,8 @@ export async function insertInteraction(
       log.performedWell || '', log.improvementAreas || '', log.tweakedQuestions || '', log.actionItems || '',
       log.meetRecording || '', log.granolaTranscript || '', log.interactionRound || 1, log.date, log.createdAt,
       options.createdBy ?? null,
+      // Snapshot like level/step: the form sends it; older clients don't, so fall back to the student's.
+      (log.currentSubtopic !== undefined ? log.currentSubtopic : student.currentSubtopic) ?? null,
     ]
   );
   return (result.rowCount ?? 0) > 0;
@@ -373,6 +388,7 @@ export async function getStudentList(options: { instructorId?: string } = {}): P
       hall: student.hall,
       level: student.level,
       currentTopic: student.currentTopic,
+      currentSubtopic: student.currentSubtopic,
       currentStep: student.currentStep,
       status: student.status,
       interactionCount: student.interactionCount,
@@ -538,6 +554,7 @@ export async function getInstructorList(): Promise<InstructorListEntry[]> {
                 'name', o.name,
                 'level', 'Level ' || o.level,
                 'currentTopic', o.current_topic,
+                'currentSubtopic', o.current_subtopic,
                 'currentStep', o.current_step,
                 'lastInteractionDate', to_char(o.last_interaction_date, 'YYYY-MM-DD')
               ) ORDER BY o.name) FILTER (WHERE o.id IS NOT NULL),

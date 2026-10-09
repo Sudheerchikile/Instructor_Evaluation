@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student } from '@/lib/types';
 import { isStudentAssignedTo, normalizeTopicValue } from '@/lib/storage';
-import { ALL_TOPICS, LEVELS, getStepOptionsForTopic, getTopicOptions } from '@/lib/multiLevelCurriculum';
+import { ALL_TOPICS, LEVELS, coerceSubtopic, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions, levelShortLabel } from '@/lib/multiLevelCurriculum';
 import { LevelOverview, STATUS_KEYS, STATUS_META, statusKeyOf } from '@/components/LevelOverview';
 import { 
   Search, 
@@ -23,6 +23,7 @@ interface StudentRosterTableProps {
   onUpdateStudentLevel?: (studentId: string, nextLevel: string) => void;
   onUpdateStudentStep?: (studentId: string, nextStep: string) => void;
   onUpdateStudentTopic?: (studentId: string, nextTopic: string) => void;
+  onUpdateStudentSubtopic?: (studentId: string, nextSubtopic: string) => void;
   isAllDirectory?: boolean;
 }
 
@@ -35,6 +36,7 @@ export function StudentRosterTable({
   onUpdateStudentLevel,
   onUpdateStudentStep,
   onUpdateStudentTopic,
+  onUpdateStudentSubtopic,
   isAllDirectory = false
 }: StudentRosterTableProps) {
   const [search, setSearch] = useState('');
@@ -76,6 +78,10 @@ export function StudentRosterTable({
 
     const topicDiff = getTopicProgressionIndex(b.level, b.currentTopic) - getTopicProgressionIndex(a.level, a.currentTopic);
     if (topicDiff !== 0) return topicDiff;
+
+    const subtopicDiff = getSubtopicOptions(b.level, b.currentTopic).indexOf(b.currentSubtopic ?? '')
+      - getSubtopicOptions(a.level, a.currentTopic).indexOf(a.currentSubtopic ?? '');
+    if (subtopicDiff !== 0) return subtopicDiff;
 
     return getStepProgressionIndex(b.level, b.currentTopic, b.currentStep) - getStepProgressionIndex(a.level, a.currentTopic, a.currentStep);
   };
@@ -329,6 +335,7 @@ export function StudentRosterTable({
                 {isAllDirectory && <th className="py-2.5 px-3">Assigned Evaluator</th>}
                 <th className="py-2.5 px-3">Level</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">Current Topic</th>
+                <th className="py-2.5 px-3">Subtopic</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">Current Step</th>
                 <th className="py-2.5 px-3">Status</th>
                 <th className="py-2.5 pl-3 pr-4 text-right">Feedback</th>
@@ -341,6 +348,8 @@ export function StudentRosterTable({
                 const stepOptions = getStepOptionsForTopic(student.level, student.currentTopic);
                 const safeStepValue = stepOptions.includes(student.currentStep || '') ? student.currentStep : stepOptions[0];
                 const safeTopicValue = topicOptions.includes(student.currentTopic || '') ? student.currentTopic : topicOptions[0];
+                const subtopicOptions = getSubtopicOptions(student.level, safeTopicValue);
+                const safeSubtopicValue = coerceSubtopic(student.level, safeTopicValue || '', student.currentSubtopic);
 
                 return (
                   <tr
@@ -403,12 +412,12 @@ export function StudentRosterTable({
                           className="h-8 rounded-md border border-zinc-200 bg-white px-2 text-[11px] font-mono text-zinc-700 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
                         >
                           {LEVELS.map((level) => (
-                            <option key={level} value={level}>{level}</option>
+                            <option key={level} value={level}>{levelShortLabel(level)}</option>
                           ))}
                         </select>
                       ) : (
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700">
-                          {student.level}
+                        <span title={student.level} className="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700">
+                          {levelShortLabel(student.level)}
                         </span>
                       )}
                     </td>
@@ -428,6 +437,27 @@ export function StudentRosterTable({
                       ) : (
                         <span className="text-[11px] leading-relaxed">
                           {safeTopicValue}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Subtopic: only some topics have subtopics so far; the others show a disabled "—". */}
+                    <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
+                      {!isAllDirectory ? (
+                        <select
+                          value={safeSubtopicValue ?? ''}
+                          disabled={!subtopicOptions.length}
+                          onChange={(e) => onUpdateStudentSubtopic?.(student.id, e.target.value)}
+                          title={subtopicOptions.length ? undefined : 'No subtopics for this topic yet'}
+                          className="h-8 w-36 max-w-36 truncate rounded-md border border-zinc-200 bg-white px-2 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-hidden disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:disabled:bg-zinc-900/40 dark:disabled:text-zinc-600"
+                        >
+                          {subtopicOptions.length ? subtopicOptions.map((subtopic) => (
+                            <option key={subtopic} value={subtopic}>{subtopic}</option>
+                          )) : <option value="">—</option>}
+                        </select>
+                      ) : (
+                        <span className="text-[11px] leading-relaxed">
+                          {safeSubtopicValue ?? '—'}
                         </span>
                       )}
                     </td>
@@ -488,7 +518,7 @@ export function StudentRosterTable({
 
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={isAllDirectory ? 9 : 8} className="py-12 text-center text-xs text-zinc-500">
+                  <td colSpan={isAllDirectory ? 10 : 9} className="py-12 text-center text-xs text-zinc-500">
                     No candidates match the active filter criteria.
                   </td>
                 </tr>
