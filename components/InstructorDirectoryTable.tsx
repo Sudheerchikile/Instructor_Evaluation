@@ -14,10 +14,11 @@ interface InstructorDirectoryTableProps {
   students: Student[];     // all students, for the Add instructor preview
   interactions: InteractionLog[]; // all interactions, for each instructor's history
   onChanged?: () => void;  // lets the page reload students after an assignment change
+  canManage?: boolean;     // admins: Add instructor and Assign students; view-only admins see the list only
 }
 
 // Admin-only Instructor List: full names, contact details and each instructor's assigned students.
-export function InstructorDirectoryTable({ students, interactions, onChanged }: InstructorDirectoryTableProps) {
+export function InstructorDirectoryTable({ students, interactions, onChanged, canManage = false }: InstructorDirectoryTableProps) {
   const [historyFor, setHistoryFor] = useState<InstructorListEntry | null>(null);
   const [instructors, setInstructors] = useState<InstructorListEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,14 +101,14 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
           <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
             <span className="font-mono">{instructors.length}</span> instructors · <span className="font-mono">{totalStudents}</span> students
           </div>
-          <button
+          {canManage && <button
             type="button"
             onClick={() => setShowAdd(true)}
             className="inline-flex h-8 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white cursor-pointer"
           >
             <UserPlus className="h-3.5 w-3.5" />
             Add instructor
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -144,7 +145,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
               <span className="font-mono">{unassigned.length}</span> student{unassigned.length === 1 ? ' has' : 's have'} no instructor yet
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-sky-800/80 dark:text-sky-300/80">Copy the roll numbers, then paste them into Assign students on an instructor&apos;s row.</span>
+              {canManage && <span className="text-[11px] text-sky-800/80 dark:text-sky-300/80">Copy the roll numbers, then paste them into Assign students on an instructor&apos;s row.</span>}
               <button type="button" onClick={copyUnassigned} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-sky-200 bg-white px-2 text-[11px] font-medium text-sky-800 hover:bg-sky-50 dark:border-sky-900 dark:bg-zinc-900 dark:text-sky-300 dark:hover:bg-zinc-800 cursor-pointer">
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'Copied' : 'Copy roll numbers'}
@@ -180,8 +181,8 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
         </div>
       )}
 
-      {showAdd && <AddInstructorForm students={students} onClose={() => setShowAdd(false)} onCreated={(r) => handleSaved(r, 'created')} />}
-      {assignTo && <AssignStudentsModal instructor={assignTo} students={students} onClose={() => setAssignTo(null)} onAssigned={(r) => handleSaved(r, 'assigned')} />}
+      {canManage && showAdd && <AddInstructorForm students={students} onClose={() => setShowAdd(false)} onCreated={(r) => handleSaved(r, 'created')} />}
+      {canManage && assignTo && <AssignStudentsModal instructor={assignTo} students={students} onClose={() => setAssignTo(null)} onAssigned={(r) => handleSaved(r, 'assigned')} />}
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <table className="w-full text-left text-xs">
@@ -223,7 +224,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                     <td className="py-2.5 px-3 font-mono text-zinc-500">{inst.email}</td>
                     <td className="py-2.5 px-3 text-right font-mono">{inst.students.length}</td>
                     <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
-                      <button
+                      {canManage && <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setAssignTo(inst); }}
                         title={`Assign students to ${inst.name}`}
@@ -231,7 +232,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged }: 
                       >
                         <UserCheck className="h-3.5 w-3.5" />
                         Assign students
-                      </button>
+                      </button>}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setHistoryFor(inst); }}

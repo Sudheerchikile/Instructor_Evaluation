@@ -447,6 +447,10 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Problem: on 10 Oct the card showed 7 conversions "today" while Today's Interactions showed 2–3. Instructors often log a *past* interaction (e.g. dated 1 Oct or 9 Oct) and change the level right after, so the moment of the level change was not the day the student cleared the level.
     - New rule (`getLevelConversions`): a conversion N → N+1 is dated by the **latest-dated interaction logged at Level N before the promotion**; without one, the day of the level change. Backfilled rows keep their date.
     - Undone promotions now count nothing **on any day**: only students currently above Level N count for N → N+1 (dated by their latest promotion past N). So the all-time total always equals the number of students above Level 0 (111 on 10 Oct). This removes the "undone on a later day" limitation from item 27.
+33. **Senior instructors** (2026-10-10): instructors who can also read the admin pages.
+    - New column `users.is_senior` (default false). A senior instructor keeps everything an instructor has (Assigned page, own students, logging and editing interactions, level/topic/step changes) and also gets the **Instructors** tab, read-only: Add instructor, Assign students and the "paste into Assign students" hint are hidden, and the server keeps both actions admin-only. `GET /api/instructors` allows admins and senior instructors. The name badge shows "Senior instructor". The flag only applies to instructor logins.
+    - Set on 2026-10-10 for Aniket Jaiswal (INS032, `aniket.jaiswal@nxtwave.co.in`) and Abhinav Sharma (INS047, `sharma.abhinav@nxtwave.co.in`). Admins can still assign students to them at any time.
+    - To add or remove one: `UPDATE users SET is_senior = true|false WHERE email = '...';` (`db:users` never changes the flag).
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

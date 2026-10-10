@@ -36,6 +36,7 @@ interface UserRow {
   role: 'admin' | 'instructor';
   instructor_id: string | null;
   password_hash: string;
+  is_senior?: boolean; // absent before the column was added
 }
 
 const toUser = (row: UserRow): InstructorUser => ({
@@ -44,6 +45,7 @@ const toUser = (row: UserRow): InstructorUser => ({
   email: row.email,
   role: row.role,
   instructorId: row.instructor_id,
+  isSenior: row.role === 'instructor' && !!row.is_senior,
 });
 
 export async function authenticate(email: string, password: string): Promise<InstructorUser | null> {

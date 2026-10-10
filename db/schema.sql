@@ -36,6 +36,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Senior instructors: instructors (own students, log interactions) who can also read the admin pages
+-- (the Instructors page). They cannot add instructors or assign students; that stays admin-only.
+-- Set by hand, e.g. UPDATE users SET is_senior = true WHERE email = '...'; db:users never changes it.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_senior BOOLEAN NOT NULL DEFAULT false;
+
 -- Login sessions. Only a SHA-256 hash of the cookie token is stored.
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash  TEXT PRIMARY KEY,

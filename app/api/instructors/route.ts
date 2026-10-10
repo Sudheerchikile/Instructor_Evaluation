@@ -3,9 +3,12 @@ import { createInstructor, getInstructorList } from '@/db/queries';
 import { NewInstructorInput } from '@/lib/types';
 import { withUser } from '../_lib/respond';
 
-// Full instructor details with their assigned students. Admin only.
+// Full instructor details with their assigned students. Admins and senior instructors (read-only).
 export async function GET(request: NextRequest) {
-  return withUser(request, async () => Response.json(await getInstructorList()), ['admin']);
+  return withUser(request, async (user) => {
+    if (user.role !== 'admin' && !user.isSenior) return Response.json({ error: 'You do not have access to this.' }, { status: 403 });
+    return Response.json(await getInstructorList());
+  }, ['admin', 'instructor']);
 }
 
 // Add an instructor (login + assigned students). Admin only.

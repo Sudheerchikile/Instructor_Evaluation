@@ -89,7 +89,11 @@ export default function Home() {
 
   const instructorSummaries = useMemo(() => getInstructorSummaries(students), [students]);
   const currentInstructor = currentUser?.name ?? "";
+  // Admins read everything and change no students. Senior instructors are instructors (own students, logging)
+  // who can also read the Instructors page; only admins add instructors and assign students.
   const isAdmin = currentUser?.role === "admin";
+  const isSenior = !isAdmin && !!currentUser?.isSenior;
+  const canViewInstructors = isAdmin || isSenior;
   const assignedCount = useMemo(() => isAdmin ? students.length : students.filter((s) => isStudentAssignedTo(s, currentUser)).length, [students, currentUser, isAdmin]);
 
   const handleLogout = () => { signOut().catch(() => {}).finally(() => router.replace("/login")); };
@@ -215,7 +219,9 @@ export default function Home() {
         assignedCount={assignedCount}
         theme={theme}
         onToggleTheme={handleToggleTheme}
-        isAdmin={isAdmin}
+        showAssignedTab={!isAdmin}
+        showInstructorsTab={canViewInstructors}
+        roleLabel={isAdmin ? "Admin" : isSenior ? "Senior instructor" : undefined}
       />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         {dataError && (
@@ -241,13 +247,13 @@ export default function Home() {
             <StudentRosterTable students={students} currentInstructor={currentInstructor} currentInstructorEmail={currentUser.email} onStartInteraction={handleStartInteraction} onViewHistory={(s) => setHistoryStudent(s)} onUpdateStudentLevel={handleUpdateStudentLevel} onUpdateStudentStep={handleUpdateStudentStep} onUpdateStudentTopic={handleUpdateStudentTopic} onUpdateStudentSubtopic={handleUpdateStudentSubtopic} isAllDirectory={true} />
           </div>
         )}
-        {activeTab === "instructors" && isAdmin && (
+        {activeTab === "instructors" && canViewInstructors && (
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Instructors</h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Every instructor with full name, company email and assigned students. Click a row to see their students.</p>
             </div>
-            <InstructorDirectoryTable students={students} interactions={interactions} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
+            <InstructorDirectoryTable students={students} interactions={interactions} canManage={isAdmin} onChanged={() => { fetchStudents().then(setStudents).catch(() => {}); }} />
           </div>
         )}
         {activeTab === "logs" && (

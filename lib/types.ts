@@ -136,6 +136,7 @@ export interface InstructorUser {
   email: string;
   role: InstructorRole;
   instructorId: string | null; // directory id for instructors; null for admins
+  isSenior?: boolean;          // senior instructor: also reads the admin pages (no adding instructors or assigning)
 }
 
 export interface InstructorSummary {
