@@ -23,13 +23,14 @@ export interface Student {
   instructorMatch?: InstructorMatchStatus;
 }
 
-// One student crossing one level boundary upward on one day (IST); see getLevelConversions in db/queries.ts.
+// One student who crossed a level boundary upward and is still above it, dated by the day they cleared the level;
+// see getLevelConversions in db/queries.ts.
 export interface LevelConversion {
   date: string;       // YYYY-MM-DD
   studentId: string;
   fromLevel: string;  // e.g. "Level 0"
   toLevel: string;    // e.g. "Level 1"
-  estimated: boolean; // dated from interaction history (changes made before level tracking existed)
+  estimated: boolean; // the level change was rebuilt from interaction history (made before tracking existed)
 }
 
 export interface InteractionLog {

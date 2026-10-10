@@ -24,7 +24,7 @@ function formatDay(isoDate: string): string {
 }
 
 // Students who moved up a level today, on a chosen date, or within a date range.
-// The server nets each student's changes per day, so a promotion undone the same day is not counted.
+// The server dates each conversion by the interaction where the student cleared the level and drops undone ones.
 export function LevelConversions({ students, currentInstructorId }: LevelConversionsProps) {
   const today = todayLocal();
   const [conversions, setConversions] = useState<LevelConversion[] | null>(null);
@@ -170,7 +170,7 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
                                     <td className="py-1.5 pr-3 text-zinc-900 dark:text-zinc-100">{c.student.name}</td>
                                     <td className="py-1.5 px-3">{c.student.instructorFullName ?? c.student.instructor}</td>
                                     <td className="py-1.5 pl-3 text-right font-mono"
-                                      title={c.estimated ? 'From the last interaction before the level change (changed before tracking started)' : undefined}>
+                                      title={c.estimated ? 'Changed before tracking started; dated by the last interaction before the change' : undefined}>
                                       {formatDay(c.date)}
                                     </td>
                                   </tr>
@@ -191,8 +191,9 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
             </tbody>
           </table>
           <p className="mt-2 text-[10px] text-zinc-500">
-            A promotion reversed on the same day is not counted. College and instructor filters use current assignments.
-            Promotions made before tracking started (6 Oct 2026) are dated by the last interaction before the change.
+            Date cleared = date of the last interaction logged at the old level before the promotion (or the day of the
+            level change if there is none). A promotion that was undone is not counted. College and instructor filters use
+            current assignments.
           </p>
         </>
       )}

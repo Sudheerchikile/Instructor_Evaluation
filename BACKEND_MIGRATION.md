@@ -443,6 +443,10 @@ Because the data lives separately in each browser (§1), there is no single curr
     - One-time migration `subtopics_default_level1`: the 101 students on Level 1 → Maths were set to **LCM & GCD** (the user chose this); levels and steps were not touched.
     - UI: Subtopic column in My Students (dropdown), the Directory and the Instructors page student list (read-only). "Top performing" sorts by level, topic, subtopic, then step. Interaction details show "Level, Subtopic & Step (when logged)". To save width, those tables show the level as a number ("1", full "Level 1" on hover); the level filter still says "Level 1".
     - **Adding subtopics for another topic later:** add a `"Level N|Topic": [...]` entry to `SUBTOPIC_MAP` and deploy. Students already on that topic have no subtopic until it's set: the table shows the first subtopic and saves it on their next change. To give them all the first subtopic at once, add a one-time `data_migrations`-guarded `UPDATE` to `db/schema.sql` like `subtopics_default_level1`, and run `npm run db:migrate`.
+32. **Level conversions are dated by the clearing interaction** (2026-10-10; replaces the counting rule in item 27, no DB change).
+    - Problem: on 10 Oct the card showed 7 conversions "today" while Today's Interactions showed 2–3. Instructors often log a *past* interaction (e.g. dated 1 Oct or 9 Oct) and change the level right after, so the moment of the level change was not the day the student cleared the level.
+    - New rule (`getLevelConversions`): a conversion N → N+1 is dated by the **latest-dated interaction logged at Level N before the promotion**; without one, the day of the level change. Backfilled rows keep their date.
+    - Undone promotions now count nothing **on any day**: only students currently above Level N count for N → N+1 (dated by their latest promotion past N). So the all-time total always equals the number of students above Level 0 (111 on 10 Oct). This removes the "undone on a later day" limitation from item 27.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

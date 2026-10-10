@@ -159,26 +159,34 @@ export async function updateStudentProgress(
   return getStudent(id);
 }
 
-// Level conversions for Analytics: one entry per student per level crossed upward, per day (IST).
-// All of a student's changes on one day are netted from the first level that day to the last, so a mistaken
-// promotion undone the same day counts nothing, and a net move from Level N to Level M (M > N) counts once
-// for each step N→N+1 … M-1→M. Net moves down count nothing. `estimated` marks days rebuilt from interactions.
+// Level conversions for Analytics: one entry per student per level boundary N→N+1 they are still above.
+//  - Undone promotions count nothing, whatever day they were undone: only students currently above Level N
+//    count for N→N+1 (demotions only happen as corrections). A jump N→M counts each boundary in between.
+//  - Date = the day the student cleared the level: the latest-dated interaction logged at Level N before the
+//    (latest) promotion past N. Instructors often log a past interaction and promote right after, so the moment
+//    of the level change is not the clearing day. Without such an interaction, the day of the level change.
+//  - `estimated` marks changes rebuilt from interaction history (before tracking started); those rows are
+//    already dated by the last interaction before the change.
 export async function getLevelConversions(): Promise<LevelConversion[]> {
   const { rows } = await getPool().query<LevelConversion>(
-    `WITH net AS (
-       SELECT student_id, change_date,
-              (array_agg(from_level ORDER BY changed_at, id))[1] AS start_level,
-              (array_agg(to_level ORDER BY changed_at DESC, id DESC))[1] AS end_level,
-              bool_or(source = 'backfill') AS estimated
-       FROM level_changes
-       GROUP BY student_id, change_date
+    `WITH ups AS (
+       SELECT lc.id, lc.student_id, lc.changed_at, lc.source, b AS boundary,
+              CASE WHEN lc.source = 'backfill' THEN lc.change_date ELSE COALESCE((
+                SELECT max(it.date) FROM interactions it
+                WHERE it.student_id = lc.student_id AND COALESCE(it.level, 0) = lc.from_level AND it.created_at <= lc.changed_at
+              ), lc.change_date) END AS cleared_on
+       FROM level_changes lc
+       CROSS JOIN LATERAL generate_series(lc.from_level, lc.to_level - 1) AS b
+       WHERE lc.to_level > lc.from_level
+     ), latest AS (
+       SELECT DISTINCT ON (student_id, boundary) * FROM ups ORDER BY student_id, boundary, changed_at DESC, id DESC
      )
-     SELECT to_char(n.change_date, 'YYYY-MM-DD') AS "date", n.student_id AS "studentId",
-            'Level ' || step AS "fromLevel", 'Level ' || (step + 1) AS "toLevel", n.estimated
-     FROM net n
-     CROSS JOIN LATERAL generate_series(n.start_level, n.end_level - 1) AS step
-     WHERE n.end_level > n.start_level
-     ORDER BY n.change_date DESC, step, n.student_id`
+     SELECT to_char(l.cleared_on, 'YYYY-MM-DD') AS "date", l.student_id AS "studentId",
+            'Level ' || l.boundary AS "fromLevel", 'Level ' || (l.boundary + 1) AS "toLevel", l.source = 'backfill' AS estimated
+     FROM latest l
+     JOIN students s ON s.id = l.student_id
+     WHERE s.level > l.boundary
+     ORDER BY l.cleared_on DESC, l.boundary, l.student_id`
   );
   return rows;
 }
