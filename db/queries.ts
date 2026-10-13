@@ -4,6 +4,7 @@ import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, Ins
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, coerceSubtopic, getDefaultTopicForLevel, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
+import { STRICT_RULE_FROM, requiredTopicsByLevelNumber } from '../lib/levelCompletion';
 import { hashPassword } from './auth';
 
 // Data access for the API routes. Output field names match lib/types.ts.
@@ -162,31 +163,58 @@ export async function updateStudentProgress(
 // Level conversions for Analytics: one entry per student per level boundary N→N+1 they are still above.
 //  - Undone promotions count nothing, whatever day they were undone: only students currently above Level N
 //    count for N→N+1 (demotions only happen as corrections). A jump N→M counts each boundary in between.
-//  - Date = the day the student cleared the level: the latest-dated interaction logged at Level N before the
-//    (latest) promotion past N. Instructors often log a past interaction and promote right after, so the moment
-//    of the level change is not the clearing day. Without such an interaction, the day of the level change.
-//  - `estimated` marks changes rebuilt from interaction history (before tracking started); those rows are
-//    already dated by the last interaction before the change.
+//  - Which rule applies depends on when the student FIRST moved past Level N (so a later correction doesn't
+//    switch rules); see lib/levelCompletion.ts:
+//      before STRICT_RULE_FROM (everything tracked until then, kept exactly as it was): counted, dated by the
+//        latest-dated interaction logged at Level N before the (latest) promotion, else the day of the level change;
+//      from STRICT_RULE_FROM: counted only when every required topic of Level N has its own Cleared interaction at
+//        Level N, dated by the Cleared date of the topic cleared last (each topic's first Cleared date, any order).
+//        Otherwise `incomplete`: the card lists it as not counted.
+//  - `estimated` marks changes rebuilt from interaction history (before tracking started).
 export async function getLevelConversions(): Promise<LevelConversion[]> {
   const { rows } = await getPool().query<LevelConversion>(
-    `WITH ups AS (
+    `WITH required AS (
+       SELECT e.key::int AS lvl, t.topic
+       FROM jsonb_each($1::jsonb) AS e CROSS JOIN LATERAL jsonb_array_elements_text(e.value) AS t(topic)
+     ), first_cleared AS (
+       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, btrim(t) AS topic, min(it.date) AS cleared_on
+       FROM interactions it CROSS JOIN LATERAL unnest(string_to_array(it.topics, ',')) AS t
+       WHERE it.status_post_interaction = 'Cleared'
+       GROUP BY 1, 2, 3
+     ), ups AS (
        SELECT lc.id, lc.student_id, lc.changed_at, lc.source, b AS boundary,
               CASE WHEN lc.source = 'backfill' THEN lc.change_date ELSE COALESCE((
                 SELECT max(it.date) FROM interactions it
                 WHERE it.student_id = lc.student_id AND COALESCE(it.level, 0) = lc.from_level AND it.created_at <= lc.changed_at
-              ), lc.change_date) END AS cleared_on
+              ), lc.change_date) END AS fallback_on
        FROM level_changes lc
        CROSS JOIN LATERAL generate_series(lc.from_level, lc.to_level - 1) AS b
        WHERE lc.to_level > lc.from_level
      ), latest AS (
-       SELECT DISTINCT ON (student_id, boundary) * FROM ups ORDER BY student_id, boundary, changed_at DESC, id DESC
+       SELECT DISTINCT ON (u.student_id, u.boundary) u.*,
+              min(u.changed_at) OVER (PARTITION BY u.student_id, u.boundary) AS first_crossed_at
+       FROM ups u ORDER BY u.student_id, u.boundary, u.changed_at DESC, u.id DESC
+     ), strict AS (
+       SELECT l.student_id, l.boundary,
+              CASE WHEN bool_and(fc.cleared_on IS NOT NULL) THEN max(fc.cleared_on) END AS completed_on
+       FROM latest l
+       JOIN required r ON r.lvl = l.boundary
+       LEFT JOIN first_cleared fc ON fc.student_id = l.student_id AND fc.lvl = r.lvl AND fc.topic = r.topic
+       GROUP BY l.student_id, l.boundary
+     ), dated AS (
+       SELECT l.*,
+              CASE WHEN l.first_crossed_at < $2::timestamptz THEN l.fallback_on ELSE st.completed_on END AS on_date,
+              l.first_crossed_at >= $2::timestamptz AND st.completed_on IS NULL AS incomplete
+       FROM latest l LEFT JOIN strict st USING (student_id, boundary)
      )
-     SELECT to_char(l.cleared_on, 'YYYY-MM-DD') AS "date", l.student_id AS "studentId",
-            'Level ' || l.boundary AS "fromLevel", 'Level ' || (l.boundary + 1) AS "toLevel", l.source = 'backfill' AS estimated
-     FROM latest l
-     JOIN students s ON s.id = l.student_id
-     WHERE s.level > l.boundary
-     ORDER BY l.cleared_on DESC, l.boundary, l.student_id`
+     SELECT to_char(COALESCE(d.on_date, d.fallback_on), 'YYYY-MM-DD') AS "date", d.student_id AS "studentId",
+            'Level ' || d.boundary AS "fromLevel", 'Level ' || (d.boundary + 1) AS "toLevel",
+            d.source = 'backfill' AS estimated, d.incomplete
+     FROM dated d
+     JOIN students s ON s.id = d.student_id
+     WHERE s.level > d.boundary
+     ORDER BY COALESCE(d.on_date, d.fallback_on) DESC, d.boundary, d.student_id`,
+    [JSON.stringify(requiredTopicsByLevelNumber()), STRICT_RULE_FROM]
   );
   return rows;
 }

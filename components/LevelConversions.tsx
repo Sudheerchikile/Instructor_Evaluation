@@ -24,7 +24,7 @@ function formatDay(isoDate: string): string {
 }
 
 // Students who moved up a level today, on a chosen date, or within a date range.
-// The server dates each conversion by the interaction where the student cleared the level and drops undone ones.
+// Dates and counting rules come from the server (getLevelConversions; lib/levelCompletion.ts).
 export function LevelConversions({ students, currentInstructorId }: LevelConversionsProps) {
   const today = todayLocal();
   const [conversions, setConversions] = useState<LevelConversion[] | null>(null);
@@ -36,6 +36,7 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
   const [college, setCollege] = useState('ALL');
   const [onlyMine, setOnlyMine] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null); // fromLevel of the opened row
+  const [showNotCounted, setShowNotCounted] = useState(false);
 
   // Fetched each time Analytics opens, so promotions made since are included.
   useEffect(() => {
@@ -57,14 +58,21 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
     : from === to ? formatDay(from)
     : `${formatDay(from)} – ${formatDay(to)}`;
 
-  const { rows, total } = useMemo(() => {
-    const inPeriod = (conversions ?? []).filter((c) => {
+  const { rows, total, notCounted } = useMemo(() => {
+    const matching = (conversions ?? []).filter((c) => {
       const student = studentById.get(c.studentId);
       if (!student || c.date < from || c.date > to) return false;
       if (college !== 'ALL' && student.degree !== college) return false;
       if (onlyMine && student.instructorId !== currentInstructorId) return false;
       return true;
     });
+    // From 13 Oct 16:00 a conversion counts only once every topic of the old level is cleared in the logs; level changes
+    // made by hand before that are listed separately. Conversions tracked before then all count, as they always did.
+    const inPeriod = matching.filter((c) => !c.incomplete);
+    const notCounted = matching
+      .filter((c) => c.incomplete)
+      .map((c) => ({ ...c, student: studentById.get(c.studentId)! }))
+      .sort((a, b) => a.fromLevel.localeCompare(b.fromLevel) || a.student.name.localeCompare(b.student.name));
     const rows = BOUNDARIES.map(({ from: fromLevel, to: toLevel }) => ({
       fromLevel,
       toLevel,
@@ -74,7 +82,7 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
         .map((c) => ({ ...c, student: studentById.get(c.studentId)! }))
         .sort((a, b) => b.date.localeCompare(a.date) || a.student.name.localeCompare(b.student.name)),
     }));
-    return { rows, total: inPeriod.length };
+    return { rows, total: inPeriod.length, notCounted };
   }, [conversions, studentById, from, to, college, onlyMine, currentInstructorId]);
 
   const inputClass = 'rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-[11px] text-zinc-700 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 cursor-pointer';
@@ -167,10 +175,11 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
                               <tbody className="divide-y divide-zinc-200/70 dark:divide-zinc-800/60">
                                 {items.map((c) => (
                                   <tr key={`${c.studentId}-${c.date}`}>
-                                    <td className="py-1.5 pr-3 text-zinc-900 dark:text-zinc-100">{c.student.name}</td>
+                                    <td className="py-1.5 pr-3 text-zinc-900 dark:text-zinc-100">
+                                      {c.student.name}
+                                    </td>
                                     <td className="py-1.5 px-3">{c.student.instructorFullName ?? c.student.instructor}</td>
-                                    <td className="py-1.5 pl-3 text-right font-mono"
-                                      title={c.estimated ? 'Changed before tracking started; dated by the last interaction before the change' : undefined}>
+                                    <td className="py-1.5 pl-3 text-right font-mono">
                                       {formatDay(c.date)}
                                     </td>
                                   </tr>
@@ -190,10 +199,43 @@ export function LevelConversions({ students, currentInstructorId }: LevelConvers
               </tr>
             </tbody>
           </table>
+          {notCounted.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+              <button type="button" onClick={() => setShowNotCounted((v) => !v)} className="inline-flex items-center gap-1 text-left font-medium cursor-pointer">
+                {showNotCounted ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                Not counted: {notCounted.length} level change{notCounted.length === 1 ? '' : 's'} made by hand before every topic of the level was cleared
+              </button>
+              {showNotCounted && (
+                <div className="mt-2 max-h-56 overflow-y-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="text-amber-800/80 dark:text-amber-300/80">
+                      <tr>
+                        <th className="py-1 pr-3 font-medium">Student</th>
+                        <th className="py-1 px-3 font-medium">Assigned instructor</th>
+                        <th className="py-1 px-3 font-medium">Level change</th>
+                        <th className="py-1 pl-3 text-right font-medium">Last interaction before it</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-zinc-700 dark:text-zinc-300">
+                      {notCounted.map((c) => (
+                        <tr key={`${c.studentId}-${c.fromLevel}`}>
+                          <td className="py-1 pr-3 text-zinc-900 dark:text-zinc-100">{c.student.name}</td>
+                          <td className="py-1 px-3">{c.student.instructorFullName ?? c.student.instructor}</td>
+                          <td className="py-1 px-3 whitespace-nowrap">{c.fromLevel} → {c.toLevel}</td>
+                          <td className="py-1 pl-3 text-right font-mono">{formatDay(c.date)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           <p className="mt-2 text-[10px] text-zinc-500">
-            Date cleared = date of the last interaction logged at the old level before the promotion (or the day of the
-            level change if there is none). A promotion that was undone is not counted. College and instructor filters use
-            current assignments.
+            From 13 Oct 2026, 4 PM, a conversion counts once every topic of the level has its own Cleared interaction (Level 0
+            excludes Introduction and Data Types), dated by the topic cleared last, in any order; a level changed by hand before
+            that is not counted. Conversions tracked before then are unchanged: dated by the last interaction before the
+            promotion. A promotion that was undone is not counted. College and instructor filters use current assignments.
           </p>
         </>
       )}
