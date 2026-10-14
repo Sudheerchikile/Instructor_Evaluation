@@ -34,6 +34,7 @@ const INTERACTION_JSON = `
     'level', CASE WHEN it.level IS NULL THEN NULL ELSE 'Level ' || it.level END,
     'currentStep', it.current_step,
     'currentSubtopic', it.current_subtopic,
+    'subtopics', it.subtopics,
     'topics', it.topics,
     'statusPostInteraction', it.status_post_interaction,
     'rating', it.rating::float,
@@ -169,7 +170,8 @@ export async function updateStudentProgress(
 //        latest-dated interaction logged at Level N before the (latest) promotion, else the day of the level change;
 //      from STRICT_RULE_FROM: counted only when every required topic of Level N has its own Cleared interaction at
 //        Level N, dated by the Cleared date of the topic cleared last (each topic's first Cleared date, any order).
-//        Topic names match loosely (topicKeySql below).
+//        A topic with subtopics counts once each of its subtopics has a Cleared interaction listing it (the
+//        interaction's `subtopics`). Topic and subtopic names match loosely (topicKeySql below).
 //        Otherwise `incomplete`: the card lists it as not counted.
 //  - `estimated` marks changes rebuilt from interaction history (before tracking started).
 // Topic names are compared loosely (case, spaces, punctuation and a plural "s" ignored), because older interactions
@@ -179,8 +181,19 @@ const topicKeySql = (expr: string) => `regexp_replace(regexp_replace(lower(${exp
 export async function getLevelConversions(): Promise<LevelConversion[]> {
   const { rows } = await getPool().query<LevelConversion>(
     `WITH required AS (
-       SELECT e.key::int AS lvl, ${topicKeySql('t.topic')} AS topic
-       FROM jsonb_each($1::jsonb) AS e CROSS JOIN LATERAL jsonb_array_elements_text(e.value) AS t(topic)
+       -- one row per required topic, or per subtopic for a topic that has subtopics (sub is NULL otherwise)
+       SELECT e.key::int AS lvl, ${topicKeySql("x->>'topic'")} AS topic, ${topicKeySql('s.sub')} AS sub
+       FROM jsonb_each($1::jsonb) AS e
+       CROSS JOIN LATERAL jsonb_array_elements(e.value) AS x
+       LEFT JOIN LATERAL jsonb_array_elements_text(x->'subtopics') AS s(sub) ON true
+     ), first_cleared_sub AS (
+       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, ${topicKeySql('t')} AS topic, ${topicKeySql('st')} AS sub,
+              min(it.date) AS cleared_on
+       FROM interactions it
+       CROSS JOIN LATERAL unnest(string_to_array(it.topics, ',')) AS t
+       CROSS JOIN LATERAL unnest(string_to_array(it.subtopics, ',')) AS st
+       WHERE it.status_post_interaction = 'Cleared' AND it.subtopics <> ''
+       GROUP BY 1, 2, 3, 4
      ), first_cleared AS (
        SELECT it.student_id, COALESCE(it.level, 0) AS lvl, ${topicKeySql('t')} AS topic, min(it.date) AS cleared_on
        FROM interactions it CROSS JOIN LATERAL unnest(string_to_array(it.topics, ',')) AS t
@@ -201,10 +214,13 @@ export async function getLevelConversions(): Promise<LevelConversion[]> {
        FROM ups u ORDER BY u.student_id, u.boundary, u.changed_at DESC, u.id DESC
      ), strict AS (
        SELECT l.student_id, l.boundary,
-              CASE WHEN bool_and(fc.cleared_on IS NOT NULL) THEN max(fc.cleared_on) END AS completed_on
+              CASE WHEN bool_and(COALESCE(fc.cleared_on, fs.cleared_on) IS NOT NULL)
+                   THEN max(COALESCE(fc.cleared_on, fs.cleared_on)) END AS completed_on
        FROM latest l
        JOIN required r ON r.lvl = l.boundary
-       LEFT JOIN first_cleared fc ON fc.student_id = l.student_id AND fc.lvl = r.lvl AND fc.topic = r.topic
+       LEFT JOIN first_cleared fc ON r.sub IS NULL AND fc.student_id = l.student_id AND fc.lvl = r.lvl AND fc.topic = r.topic
+       LEFT JOIN first_cleared_sub fs ON r.sub IS NOT NULL AND fs.student_id = l.student_id AND fs.lvl = r.lvl
+         AND fs.topic = r.topic AND fs.sub = r.sub
        GROUP BY l.student_id, l.boundary
      ), dated AS (
        SELECT l.*,
@@ -255,8 +271,8 @@ export async function insertInteraction(
     `INSERT INTO interactions (id, student_id, student_name, instructor_name, instructor_email, taken_by_instructor_id,
        assigned_instructor_id, assigned_instructor_name, level, current_step, topics, status_post_interaction, rating,
        questions_asked, remarks, performed_well, improvement_areas, tweaked_questions, action_items, meet_recording,
-       granola_transcript, interaction_round, date, created_at, created_by, current_subtopic)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+       granola_transcript, interaction_round, date, created_at, created_by, current_subtopic, subtopics)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
      ${options.skipExisting ? 'ON CONFLICT (id) DO NOTHING' : ''}`,
     [
       log.id, log.studentId, log.studentName, log.instructorName || '', log.instructorEmail ?? null, takenBy?.id ?? null,
@@ -269,6 +285,7 @@ export async function insertInteraction(
       options.createdBy ?? null,
       // Snapshot like level/step: the form sends it; older clients don't, so fall back to the student's.
       (log.currentSubtopic !== undefined ? log.currentSubtopic : student.currentSubtopic) ?? null,
+      cleanSubtopics(log.subtopics),
     ]
   );
   return (result.rowCount ?? 0) > 0;
@@ -286,6 +303,21 @@ function validateInteractionFields(log: Pick<InteractionLog, 'date' | 'rating' |
   }
   if (!(Number(log.rating) >= 0 && Number(log.rating) <= 5)) throw new ValidationError('Rating must be between 0 and 5.');
   if (!STATUSES.includes(log.statusPostInteraction)) throw new ValidationError('Choose a valid status.');
+}
+
+// Topics and subtopics are stored as comma-joined text.
+const splitList = (value: string | undefined | null) => (value ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+const cleanSubtopics = (value: string | undefined) => Array.from(new Set(splitList(value))).join(', ');
+
+// An interaction with subtopics covers exactly one topic of its level, and every subtopic must belong to it.
+function validateSubtopics(level: string | undefined, topics: string | undefined, subtopics: string | undefined) {
+  const chosen = splitList(subtopics);
+  if (!chosen.length) return;
+  const topicList = splitList(topics);
+  if (topicList.length !== 1) throw new ValidationError('Pick one topic when choosing subtopics.');
+  const options = getSubtopicOptions(level ?? 'Level 0', topicList[0]);
+  const unknown = chosen.filter((s) => !options.includes(s));
+  if (unknown.length) throw new ValidationError(`Not subtopics of ${topicList[0]}: ${unknown.join(', ')}.`);
 }
 
 async function getInteraction(id: string): Promise<InteractionLog | null> {
@@ -350,6 +382,7 @@ export async function updateInteraction(
 
   const next = { ...current, ...patch };
   validateInteractionFields(next);
+  validateSubtopics(current.level, next.topics, next.subtopics);
 
   const client = await getPool().connect();
   try {
@@ -361,12 +394,13 @@ export async function updateInteraction(
       `UPDATE interactions SET date = $2, instructor_name = $3, taken_by_instructor_id = $4, topics = $5,
          status_post_interaction = $6, rating = $7, questions_asked = $8, remarks = $9, performed_well = $10,
          improvement_areas = $11, tweaked_questions = $12, action_items = $13, meet_recording = $14,
-         updated_at = now(), updated_by = $15
+         updated_at = now(), updated_by = $15, subtopics = $16
        WHERE id = $1`,
       [
         id, next.date, takenBy.name, takenBy.id, next.topics || '', next.statusPostInteraction, Number(next.rating),
         next.questionsAsked || '', next.remarks || '', next.performedWell || '', next.improvementAreas || '',
         next.tweakedQuestions || '', next.actionItems || '', next.meetRecording || '', actor.id,
+        cleanSubtopics(next.subtopics),
       ]
     );
   } finally {
@@ -386,6 +420,7 @@ export async function addInteraction(log: InteractionLog, actor: InstructorUser)
     if (!student) throw new ValidationError(`Unknown student "${log.studentId}".`);
     assertCanEdit(student, actor);
 
+    validateSubtopics(log.level ?? student.level, log.topics, log.subtopics);
     await insertInteraction(client, log, student, { createdBy: actor.id });
     await client.query('UPDATE students SET status = $2, updated_at = now() WHERE id = $1', [log.studentId, statusAfterInteraction(log)]);
     await client.query('COMMIT');

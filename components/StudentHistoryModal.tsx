@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Student, InteractionLog } from '@/lib/types';
+import { formatLogTopics } from '@/lib/storage';
 import {
   X,
   ExternalLink,
@@ -198,7 +199,7 @@ export function StudentHistoryModal({
                             {isLatest && <span className="rounded bg-[#373e47] px-1.5 py-0.5 text-[10px] font-medium text-[#adbac7]">Latest</span>}
                             <StatusBadge status={log.statusPostInteraction} />
                           </div>
-                          <div className="mt-1 text-[13px] font-medium text-[#cdd9e5]">{log.topics}</div>
+                          <div className="mt-1 text-[13px] font-medium text-[#cdd9e5]">{formatLogTopics(log)}</div>
                           <div className="mt-0.5 text-[11px] text-[#909dab]">
                             <span className="font-mono">{log.date}</span> • Taken by <span className="font-medium text-[#adbac7]">{log.instructorName}</span>
                             {log.updatedAt && <span title={`Edited ${new Date(log.updatedAt).toLocaleString()}`}> • edited</span>}

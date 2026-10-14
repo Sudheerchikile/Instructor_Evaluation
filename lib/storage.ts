@@ -76,12 +76,17 @@ export function getInstructorSummaries(students: Student[]): InstructorSummary[]
   return Array.from(map.values()).map((d) => ({ id: d.id, name: d.name, email: d.email, assignedCount: d.assigned, completedCount: d.completed, revisitCount: d.revisit, clearedCount: d.cleared, primaryHall: Array.from(d.halls).join(', ') || 'N/A', levels: Array.from(d.levels) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// "Maths › LCM & GCD, Prime Numbers" for an interaction with subtopics, else just its topics.
+export function formatLogTopics(log: Pick<InteractionLog, 'topics' | 'subtopics'>): string {
+  return log.subtopics ? `${log.topics} › ${log.subtopics}` : log.topics;
+}
+
 export function exportInteractionsToCSV(interactions: InteractionLog[]): void {
-  const headers = ["Instructor's Name","Instructor Email","Topics","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
+  const headers = ["Instructor's Name","Instructor Email","Topics","Subtopics","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
   const esc = (v: string | number | undefined | null) => { if (v == null) return '""'; return `"${String(v).replace(/"/g, '""')}"`; };
   const rows = [headers.map(esc).join(',')];
   for (const log of interactions) {
-    rows.push([log.instructorName, log.instructorEmail ?? '', log.topics, log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript].map(esc).join(','));
+    rows.push([log.instructorName, log.instructorEmail ?? '', log.topics, log.subtopics ?? '', log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript].map(esc).join(','));
   }
   const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { InteractionLog } from '@/lib/types';
+import { formatLogTopics } from '@/lib/storage';
 import { todayLocal } from '@/lib/dates';
 import { 
   Search, 
@@ -45,7 +46,7 @@ export function InteractionLogsTable({
       (log.assignedInstructorName || '').toLowerCase().includes(q) ||
       log.studentName.toLowerCase().includes(q) ||
       log.studentId.toLowerCase().includes(q) ||
-      log.topics.toLowerCase().includes(q) ||
+      formatLogTopics(log).toLowerCase().includes(q) ||
       log.statusPostInteraction.toLowerCase().includes(q) ||
       log.remarks.toLowerCase().includes(q)
     );
@@ -151,8 +152,8 @@ export function InteractionLogsTable({
                       {log.updatedAt && <span className="ml-1.5 rounded bg-zinc-100 px-1 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" title={`Edited ${new Date(log.updatedAt).toLocaleString()}`}>edited</span>}
                     </td>
 
-                    <td className="py-2.5 px-3 max-w-[140px] truncate text-zinc-700 dark:text-zinc-300">
-                      {log.topics}
+                    <td className="py-2.5 px-3 max-w-[140px] truncate text-zinc-700 dark:text-zinc-300" title={formatLogTopics(log)}>
+                      {formatLogTopics(log)}
                     </td>
 
                     <td className="py-2.5 px-3">
@@ -256,6 +257,7 @@ export function InteractionLogsTable({
 
               {([
                 ['Topics', selectedLog.topics, false],
+                ...(selectedLog.subtopics ? [['Subtopics', selectedLog.subtopics, false] as const] : []),
                 ['Questions Asked', selectedLog.questionsAsked, true],
                 ['Remarks by Instructor', selectedLog.remarks, false],
                 ['Performed Well', selectedLog.performedWell, false],

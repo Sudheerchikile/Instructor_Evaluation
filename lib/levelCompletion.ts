@@ -1,10 +1,11 @@
-import { LEVELS, getTopicOptions } from './multiLevelCurriculum';
+import { LEVELS, getSubtopicOptions, getTopicOptions } from './multiLevelCurriculum';
 
 // What a level conversion means (decided 2026-10-13). Applied in SQL in getLevelConversions (db/queries.ts).
 //  - From STRICT_RULE_FROM: a student has converted from Level N once every required topic of Level N has its own
-//    "Cleared" interaction logged at Level N. The conversion date is the Cleared date of whichever topic was cleared
-//    last (each topic's first Cleared date; topics can be cleared in any order). A level changed by hand before that
-//    is not counted.
+//    "Cleared" interaction logged at Level N; a topic with subtopics (lib/multiLevelCurriculum.ts) counts only once
+//    every one of its subtopics has its own Cleared interaction (decided 2026-10-14). The conversion date is the
+//    Cleared date of whichever topic or subtopic was cleared last (each one's first Cleared date; any order). A level
+//    changed by hand before that is not counted.
 //  - Everything tracked before STRICT_RULE_FROM is kept exactly as it was: those conversions count, dated by the
 //    latest interaction at the old level before the promotion.
 // Which rule applies depends on when the student first moved past the level, so correcting an old promotion later
@@ -19,7 +20,11 @@ export function requiredTopics(level: string): string[] {
   return getTopicOptions(level).filter((topic) => !skip.includes(topic));
 }
 
-// { "0": ["If else", ...], "1": ["Maths", ...], ... } for SQL (levels as numbers).
-export function requiredTopicsByLevelNumber(): Record<string, string[]> {
-  return Object.fromEntries(LEVELS.map((level, index) => [String(index), requiredTopics(level)]));
+// For SQL (levels as numbers): { "0": [{ "topic": "If else", "subtopics": [] }, ...],
+//                                "1": [{ "topic": "Maths", "subtopics": ["Digit Manipulation", ...] }, ...] }
+export function requiredTopicsByLevelNumber(): Record<string, Array<{ topic: string; subtopics: string[] }>> {
+  return Object.fromEntries(LEVELS.map((level, index) => [
+    String(index),
+    requiredTopics(level).map((topic) => ({ topic, subtopics: getSubtopicOptions(level, topic) })),
+  ]));
 }

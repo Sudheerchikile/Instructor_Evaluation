@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { InteractionLog } from '@/lib/types';
+import { formatLogTopics } from '@/lib/storage';
 
 interface DeleteInteractionDialogProps {
   log: InteractionLog;
@@ -42,7 +43,7 @@ export function DeleteInteractionDialog({ log, onCancel, onConfirm }: DeleteInte
               <strong className="font-medium text-zinc-800 dark:text-zinc-200">{log.studentName}</strong> ({log.studentId}) · {log.date} ·{' '}
               {log.statusPostInteraction} · taken by {log.instructorName}
             </p>
-            {log.topics && <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">Topics: {log.topics}</p>}
+            {log.topics && <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">Topics: {formatLogTopics(log)}</p>}
           </div>
         </div>
 

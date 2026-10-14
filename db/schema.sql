@@ -125,6 +125,9 @@ ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS updated_by TEXT;
 -- Student's subtopic at log time (NULL for topics without subtopics and for older logs).
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS current_subtopic TEXT;
+-- Subtopics covered in the interaction, comma-joined like topics (e.g. "LCM & GCD, Prime Numbers"); empty for topics
+-- without subtopics and for interactions logged before 2026-10-14. Interactions with subtopics have exactly one topic.
+ALTER TABLE interactions ADD COLUMN IF NOT EXISTS subtopics TEXT NOT NULL DEFAULT '';
 
 -- Deleted interactions (duplicates, wrong details). A delete moves the row here, so every query, count and
 -- status (all read `interactions`) drops it with no extra filter. `data` is the full row as JSON, so a

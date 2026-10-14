@@ -8,11 +8,15 @@ interface TopicMultiPickerProps {
   value: string[];                   // selected topics, in selection order
   onChange: (topics: string[]) => void;
   invalid?: boolean;
+  placeholder?: string;       // shown when nothing is selected
+  searchPlaceholder?: string; // e.g. "Search subtopic..." when the options are subtopics
 }
 
 // Searchable multi-select. The list stays open while ticking topics; click outside or press Escape to close.
 // Selected values not in `options` (e.g. free text from older logs) are kept and shown as chips.
-export function TopicMultiPicker({ options, value, onChange, invalid = false }: TopicMultiPickerProps) {
+export function TopicMultiPicker({
+  options, value, onChange, invalid = false, placeholder = 'Select topics covered', searchPlaceholder = 'Search topic…',
+}: TopicMultiPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
@@ -72,7 +76,7 @@ export function TopicMultiPicker({ options, value, onChange, invalid = false }: 
         }`}
       >
         <div className="flex flex-wrap items-center gap-1">
-          {value.length === 0 && <span className="px-1 text-zinc-400">Select topics covered</span>}
+          {value.length === 0 && <span className="px-1 text-zinc-400">{placeholder}</span>}
           {value.map((topic) => (
             <span
               key={topic}
@@ -103,8 +107,8 @@ export function TopicMultiPicker({ options, value, onChange, invalid = false }: 
               value={query}
               onChange={(e) => { setQuery(e.target.value); setHighlight(0); }}
               onKeyDown={onKeyDown}
-              placeholder="Search topic…"
-              aria-label="Search topic"
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder.replace(/[.…]+$/, '')}
               className="h-8 w-full bg-transparent pl-8 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-hidden dark:text-zinc-100"
             />
           </div>
@@ -136,7 +140,7 @@ export function TopicMultiPicker({ options, value, onChange, invalid = false }: 
                 </li>
               );
             })}
-            {filtered.length === 0 && <li className="px-3 py-3 text-center text-xs text-zinc-500">No topic matches &quot;{query}&quot;.</li>}
+            {filtered.length === 0 && <li className="px-3 py-3 text-center text-xs text-zinc-500">Nothing matches &quot;{query}&quot;.</li>}
           </ul>
         </div>
       )}

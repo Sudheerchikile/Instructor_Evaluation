@@ -57,6 +57,7 @@ export interface InteractionLog {
   level?: string;        // student's level when the interaction was logged
   currentStep?: string;  // student's step when the interaction was logged
   currentSubtopic?: string | null; // student's subtopic when the interaction was logged
+  subtopics?: string;              // subtopics covered, comma-joined; set only when the topic has subtopics
   date: string;
   createdAt: string;
   createdBy?: string | null;  // user id of whoever logged it

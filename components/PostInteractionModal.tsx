@@ -12,7 +12,7 @@ import { instructorNamesMatch } from '@/lib/storage';
 import { X, Save, RotateCcw, ClipboardPaste, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
 import { TopicMultiPicker } from '@/components/TopicMultiPicker';
-import { getTopicOptions } from '@/lib/multiLevelCurriculum';
+import { getSubtopicOptions, getTopicOptions } from '@/lib/multiLevelCurriculum';
 
 // Topics are stored as one comma-separated string (the DB column and CSV export stay unchanged).
 const TOPIC_SEPARATOR = ', ';
@@ -35,6 +35,9 @@ interface PostInteractionModalProps {
   editing?: InteractionLog | null; // when set, the form edits this interaction instead of logging a new one
 }
 
+// Levels whose topics have subtopics (Level 1 so far) log one topic per interaction plus the subtopics covered.
+const levelHasSubtopics = (level: string) => getTopicOptions(level).some((topic) => getSubtopicOptions(level, topic).length > 0);
+
 // Rendered only while a student is selected (see app/page.tsx), so every open starts from fresh state.
 export function PostInteractionModal({
   isOpen,
@@ -50,13 +53,27 @@ export function PostInteractionModal({
   // Student and assigned instructor come from the selected student. The date starts empty on a new log so
   // the instructor must pick the day the session actually happened (a today default was often left unchanged).
   // When editing, every field starts from the saved interaction.
+  // An edit uses the level the interaction was logged at. At a level with subtopics, new logs and edits use one Topic
+  // plus its Subtopics; an older log that listed several topics starts with no topic, so the instructor picks the one
+  // it covered (the log is only rewritten when they save).
+  const formLevel = (editing ? editing.level : student?.level) ?? student?.level ?? 'Level 0';
+  const subtopicMode = levelHasSubtopics(formLevel);
+  const editedTopics = splitTopics(editing?.topics);
+  const editedValidTopics = editedTopics.filter((topic) => getTopicOptions(formLevel).includes(topic));
   const [defaults] = useState<InteractionDraftFields>(() => {
     const saved = editing?.statusPostInteraction;
+    // A new log starts on the student's current topic and subtopic.
+    const startTopic = student?.currentTopic && getTopicOptions(formLevel).includes(student.currentTopic) ? student.currentTopic : '';
+    const startSubtopic = startTopic && student?.currentSubtopic && getSubtopicOptions(formLevel, startTopic).includes(student.currentSubtopic)
+      ? [student.currentSubtopic] : [];
     return {
       interactionDate: editing?.date ?? '',
       // New logs default to the signed-in instructor; may be changed to the colleague who took the session.
       takenById: editing ? editing.takenByInstructorId ?? null : currentInstructorId ?? null,
-      topics: splitTopics(editing?.topics),
+      topics: editing
+        ? subtopicMode ? (editedTopics.length === 1 && editedValidTopics.length === 1 ? editedValidTopics : []) : editedTopics
+        : subtopicMode && startTopic ? [startTopic] : [],
+      subtopics: editing ? splitTopics(editing.subtopics) : subtopicMode ? startSubtopic : [],
       statusPostInteraction: saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit',
       rating: editing ? Number(editing.rating) : 0,
       questionsAsked: editing?.questionsAsked ?? '',
@@ -81,6 +98,8 @@ export function PostInteractionModal({
   const [takenByError, setTakenByError] = useState(false);
   const [topics, setTopics] = useState<string[]>(initial.topics);
   const [topicsError, setTopicsError] = useState(false);
+  const [subtopics, setSubtopics] = useState<string[]>(initial.subtopics ?? []);
+  const [subtopicsError, setSubtopicsError] = useState(false);
   const [statusPostInteraction, setStatusPostInteraction] = useState<InteractionDraftFields['statusPostInteraction']>(initial.statusPostInteraction);
   const [rating, setRating] = useState<number>(initial.rating);
   const [questionsAsked, setQuestionsAsked] = useState<string>(initial.questionsAsked);
@@ -93,7 +112,7 @@ export function PostInteractionModal({
 
   // Keep the draft in step with every change; a form still equal to its starting values stores nothing.
   const fields: InteractionDraftFields = {
-    interactionDate, takenById, topics, statusPostInteraction, rating, questionsAsked, remarks,
+    interactionDate, takenById, topics, subtopics, statusPostInteraction, rating, questionsAsked, remarks,
     performedWell, improvementAreas, tweakedQuestions, actionItems, meetRecording,
   };
   const fieldsJson = JSON.stringify(fields);
@@ -107,6 +126,7 @@ export function PostInteractionModal({
     setInteractionDate(defaults.interactionDate);
     setTakenById(defaults.takenById);
     setTopics(defaults.topics);
+    setSubtopics(defaults.subtopics ?? []);
     setStatusPostInteraction(defaults.statusPostInteraction);
     setRating(defaults.rating);
     setQuestionsAsked(defaults.questionsAsked);
@@ -125,7 +145,9 @@ export function PostInteractionModal({
   const [sheetResult, setSheetResult] = useState<SheetRowResult | null>(null);
   const fillFromSheet = () => {
     if (!student) return;
-    const result = parseSheetRow(sheetText, getTopicOptions((editing ? editing.level : student.level) ?? student.level), todayLocal());
+    // In topic + subtopics mode the sheet's topic cell is read as subtopics of the chosen topic.
+    const pasteSubtopics = subtopicMode && topics[0] ? getSubtopicOptions(formLevel, topics[0]) : [];
+    const result = parseSheetRow(sheetText, pasteSubtopics.length ? pasteSubtopics : getTopicOptions(formLevel), todayLocal());
     const v = result.values;
     if (v.takenByName) {
       const match = instructorOptions.find((o) => instructorNamesMatch(o.name, v.takenByName!) || instructorNamesMatch(o.firstName, v.takenByName!));
@@ -136,7 +158,10 @@ export function PostInteractionModal({
       }
     }
     if (v.date) { setInteractionDate(v.date); setDateError(false); }
-    if (v.topics) { setTopics(v.topics); setTopicsError(false); }
+    if (v.topics) {
+      if (pasteSubtopics.length) { setSubtopics(v.topics); setSubtopicsError(false); }
+      else { setTopics(subtopicMode ? v.topics.slice(0, 1) : v.topics); setTopicsError(false); }
+    }
     if (v.status) setStatusPostInteraction(v.status);
     if (v.rating !== undefined) setRating(v.rating);
     if (v.questionsAsked) setQuestionsAsked(v.questionsAsked);
@@ -155,7 +180,8 @@ export function PostInteractionModal({
   if (!isOpen || !student) return null;
 
   // An edit offers the topics of the level the interaction was logged at.
-  const topicOptions = getTopicOptions((editing ? editing.level : student.level) ?? student.level);
+  const topicOptions = getTopicOptions(formLevel);
+  const subtopicOptions = subtopicMode && topics[0] ? getSubtopicOptions(formLevel, topics[0]) : [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,7 +189,9 @@ export function PostInteractionModal({
     if (!interactionDate) setDateError(true);
     if (!takenBy) setTakenByError(true);
     if (topics.length === 0) setTopicsError(true);
-    if (!interactionDate || !takenBy || topics.length === 0) return;
+    const missingSubtopics = subtopicOptions.length > 0 && subtopics.length === 0;
+    if (missingSubtopics) setSubtopicsError(true);
+    if (!interactionDate || !takenBy || topics.length === 0 || missingSubtopics) return;
 
     const log: InteractionLog = {
       ...(editing ?? {}),
@@ -174,6 +202,8 @@ export function PostInteractionModal({
       takenByInstructorId: takenBy.id,
       assignedInstructorName,
       topics: topics.join(TOPIC_SEPARATOR),
+      // Only the chosen topic's subtopics, in curriculum order; the plain topic picker keeps what the log had.
+      subtopics: subtopicMode ? subtopicOptions.filter((s) => subtopics.includes(s)).join(TOPIC_SEPARATOR) : editing?.subtopics ?? '',
       statusPostInteraction,
       rating,
       questionsAsked,
@@ -352,20 +382,69 @@ export function PostInteractionModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Topics <span className="text-rose-500">*</span>
-              </label>
-              <TopicMultiPicker
-                options={topicOptions}
-                value={topics}
-                invalid={topicsError}
-                onChange={(next) => { setTopics(next); if (next.length) setTopicsError(false); }}
-              />
-              {topicsError && <p className="mt-1 text-[11px] text-rose-500">Select at least one topic.</p>}
+          {subtopicMode ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Topic <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={topics[0] ?? ''}
+                  onChange={(e) => {
+                    setTopics(e.target.value ? [e.target.value] : []);
+                    setSubtopics([]); // subtopics belong to one topic
+                    setTopicsError(false);
+                    setSubtopicsError(false);
+                  }}
+                  className={`h-9 w-full rounded-md border bg-white px-2.5 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${topicsError ? 'border-rose-400' : 'border-zinc-200 dark:border-zinc-800'}`}
+                >
+                  <option value="">Select the topic covered</option>
+                  {topicOptions.map((topic) => <option key={topic} value={topic}>{topic}</option>)}
+                </select>
+                {topicsError && <p className="mt-1 text-[11px] text-rose-500">Select the topic.</p>}
+                {editing && editedTopics.length > 1 && (
+                  <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    This interaction listed: {editedTopics.join(', ')}. Pick the one topic it covered.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Subtopics{topics[0] ? ` of ${topics[0]}` : ''} {subtopicOptions.length > 0 && <span className="text-rose-500">*</span>}
+                </label>
+                {subtopicOptions.length > 0 ? (
+                  <TopicMultiPicker
+                    options={subtopicOptions}
+                    value={subtopics}
+                    invalid={subtopicsError}
+                    placeholder="Select subtopics covered"
+                    searchPlaceholder="Search subtopic…"
+                    onChange={(next) => { setSubtopics(next); if (next.length) setSubtopicsError(false); }}
+                  />
+                ) : (
+                  <p className="flex h-9 items-center rounded-md border border-dashed border-zinc-200 px-2.5 text-[11px] text-zinc-400 dark:border-zinc-800">
+                    {topics[0] ? 'This topic has no subtopics.' : 'Select a topic first.'}
+                  </p>
+                )}
+                {subtopicsError && <p className="mt-1 text-[11px] text-rose-500">Select at least one subtopic.</p>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Topics <span className="text-rose-500">*</span>
+                </label>
+                <TopicMultiPicker
+                  options={topicOptions}
+                  value={topics}
+                  invalid={topicsError}
+                  onChange={(next) => { setTopics(next); if (next.length) setTopicsError(false); }}
+                />
+                {topicsError && <p className="mt-1 text-[11px] text-rose-500">Select at least one topic.</p>}
+              </div>
+            </div>
+          )}
 
           {/* Form Fields: Row 2 Status & Rating */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">

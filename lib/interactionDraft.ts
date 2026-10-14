@@ -6,6 +6,7 @@ export interface InteractionDraftFields {
   interactionDate: string;
   takenById: string | null;
   topics: string[];
+  subtopics?: string[]; // absent in drafts saved before subtopics existed
   statusPostInteraction: 'Need to Revisit' | 'Cleared' | 'In Progress';
   rating: number;
   questionsAsked: string;

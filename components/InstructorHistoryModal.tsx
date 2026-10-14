@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { InteractionLog } from '@/lib/types';
-import { instructorNamesMatch } from '@/lib/storage';
+import { formatLogTopics, instructorNamesMatch } from '@/lib/storage';
 import { Clock, ExternalLink, Mail, Search, User, X } from 'lucide-react';
 import { Field, Stat, StatusBadge } from '@/components/StudentHistoryModal';
 
@@ -28,7 +28,7 @@ export function InstructorHistoryModal({ instructor, interactions, onClose }: In
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return logs;
-    return logs.filter((log) => [log.studentName, log.studentId, log.topics].some((v) => (v || '').toLowerCase().includes(q)));
+    return logs.filter((log) => [log.studentName, log.studentId, formatLogTopics(log)].some((v) => (v || '').toLowerCase().includes(q)));
   }, [logs, search]);
 
   const studentCount = new Set(logs.map((log) => log.studentId)).size;
@@ -101,7 +101,7 @@ export function InstructorHistoryModal({ instructor, interactions, onClose }: In
                         <span className="font-mono text-[11px] text-[#909dab]">{log.studentId}</span>
                         <StatusBadge status={log.statusPostInteraction} />
                       </div>
-                      <div className="mt-1 text-[13px] font-medium text-[#cdd9e5]">{log.topics}</div>
+                      <div className="mt-1 text-[13px] font-medium text-[#cdd9e5]">{formatLogTopics(log)}</div>
                       <div className="mt-0.5 text-[11px] text-[#909dab]">
                         <span className="font-mono">{log.date}</span>
                         {log.level && <> • {log.level}</>}
