@@ -19,7 +19,7 @@ export const BASE_STEP_SEQUENCE = [...STEPS_UP_TO_MEDIUM, '4.1 hard standard que
 
 export const LEVEL_TOPIC_MAP: Record<string, string[]> = {
   'Level 0': LEVEL_0_ITEMS,
-  'Level 1': ['Maths', 'STL', 'Array - Basics', 'Arrays', 'String'],
+  'Level 1': ['Maths', 'STL', 'Arrays', 'String'], // "Array - Basics" merged into Arrays (2026-10-14)
   'Level 2': ['Recursion - Basics', 'Sorting', 'Binary Search'],
   'Level 3': ['Two pointers / Sliding window', 'Greedy Algorithms'],
   'Level 4': ['Bit Manipulation', 'Stack & Queues', 'Stack - Monotonic Stack'],
@@ -33,8 +33,10 @@ export const ALL_TOPICS = Array.from(new Set(Object.values(LEVEL_TOPIC_MAP).flat
 // Subtopics, in teaching order, keyed by "Level N|Topic". Each subtopic has its own run of steps, so changing the
 // subtopic restarts the step. Topics not listed have no subtopics yet (the dropdown shows "—").
 const SUBTOPIC_MAP: Record<string, string[]> = {
-  'Level 1|Maths': ['LCM & GCD', 'Prime Numbers', 'Digit Manipulation', 'Fast Exponentiation'],
-  'Level 1|STL': ['Set / Unordered Set', 'Map / Unordered Map', 'Stack and Queue'],
+  'Level 1|Maths': ['Digit Manipulation', 'LCM & GCD', 'Prime Numbers', 'Fast Exponentiation'],
+  'Level 1|STL': ['Set / Unordered Set', 'Map / Unordered Map', 'Stack', 'Queue'],
+  'Level 1|Arrays': ['Array Traversal', 'Prefix & Suffix sum', "Kadane's Algo", 'Array Adhoc', 'Array + Map / Set'],
+  'Level 1|String': ['String Traversal', 'Reversal & Palindrome check', 'String + Map'],
 };
 
 export function getSubtopicOptions(level: string, topic: string | undefined): string[] {

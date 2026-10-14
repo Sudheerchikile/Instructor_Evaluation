@@ -457,6 +457,12 @@ Because the data lives separately in each browser (§1), there is no single curr
     - **Everything tracked before the cutover is unchanged** (user's instruction): those conversions keep item 32's rule. Checked on 13 Oct: the new query returns exactly the same 198 rows as the previous one. The rule is chosen by when a student *first* moved past the level, so correcting an old promotion later doesn't switch it.
     - **No automatic promotion**: levels still change only by hand. (An automatic-promotion version was built and then parked at the user's request; it is in git stash "WIP 2026-10-13: level completion …".)
     - **One-off, 13 Oct (user-approved, before the user asked for no more data changes):** 15 students who had completed Level 0 were promoted (`changed_by` = `auto-promotion (bulk 2026-10-13)`).
+35. **Level 1 subtopics updated** (2026-10-14; `SUBTOPIC_MAP` in `lib/multiLevelCurriculum.ts`, no DB change):
+    - **Maths**: Digit Manipulation, LCM & GCD, Prime Numbers, Fast Exponentiation (Digit Manipulation is now first, so it is the default when a student moves onto Maths).
+    - **STL**: Set / Unordered Set, Map / Unordered Map, **Stack**, **Queue** ("Stack and Queue" split in two; nobody was on it).
+    - **Arrays** (new): Array Traversal, Prefix & Suffix sum, Kadane's Algo, Array Adhoc, Array + Map / Set.
+    - **String** (new): String Traversal, Reversal & Palindrome check, String + Map.
+    - **"Array - Basics" removed from Level 1**: it was the same topic as **Arrays** (user, 14 Oct). Level 1 is now Maths, STL, Arrays, String, which is also the list of topics a student must clear to complete Level 1. Nobody was on Array - Basics; 2 interactions from 9 Oct mention it (neither Cleared) and keep their text. Every subtopic stored on 14 Oct is still valid, so no student or interaction changed. The 2 students already on Arrays have no subtopic saved: the table shows Array Traversal and saves it on their next change.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.
