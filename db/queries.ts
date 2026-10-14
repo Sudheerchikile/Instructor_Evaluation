@@ -169,15 +169,20 @@ export async function updateStudentProgress(
 //        latest-dated interaction logged at Level N before the (latest) promotion, else the day of the level change;
 //      from STRICT_RULE_FROM: counted only when every required topic of Level N has its own Cleared interaction at
 //        Level N, dated by the Cleared date of the topic cleared last (each topic's first Cleared date, any order).
+//        Topic names match loosely (topicKeySql below).
 //        Otherwise `incomplete`: the card lists it as not counted.
 //  - `estimated` marks changes rebuilt from interaction history (before tracking started).
+// Topic names are compared loosely (case, spaces, punctuation and a plural "s" ignored), because older interactions
+// were typed by hand: "If Else", "If-else" and "if else" all mean "If else", "Traversals" means "Traversal".
+const topicKeySql = (expr: string) => `regexp_replace(regexp_replace(lower(${expr}), '[^a-z0-9&]', '', 'g'), 's$', '')`;
+
 export async function getLevelConversions(): Promise<LevelConversion[]> {
   const { rows } = await getPool().query<LevelConversion>(
     `WITH required AS (
-       SELECT e.key::int AS lvl, t.topic
+       SELECT e.key::int AS lvl, ${topicKeySql('t.topic')} AS topic
        FROM jsonb_each($1::jsonb) AS e CROSS JOIN LATERAL jsonb_array_elements_text(e.value) AS t(topic)
      ), first_cleared AS (
-       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, btrim(t) AS topic, min(it.date) AS cleared_on
+       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, ${topicKeySql('t')} AS topic, min(it.date) AS cleared_on
        FROM interactions it CROSS JOIN LATERAL unnest(string_to_array(it.topics, ',')) AS t
        WHERE it.status_post_interaction = 'Cleared'
        GROUP BY 1, 2, 3
