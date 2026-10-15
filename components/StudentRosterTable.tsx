@@ -10,8 +10,7 @@ import {
   Play, 
   History, 
   ChevronLeft, 
-  ChevronRight,
-  SlidersHorizontal
+  ChevronRight
 } from 'lucide-react';
 
 interface StudentRosterTableProps {
@@ -41,9 +40,7 @@ export function StudentRosterTable({
 }: StudentRosterTableProps) {
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('ALL');
-  const [degreeFilter, setDegreeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [hallFilter, setHallFilter] = useState('ALL');
   const [topicFilter, setTopicFilter] = useState('ALL');
   const [instructorFilter, setInstructorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED' or an instructor id (directory only)
   const [sortMode, setSortMode] = useState<'natural' | 'top-performing'>(isAllDirectory ? 'top-performing' : 'natural');
@@ -101,8 +98,6 @@ export function StudentRosterTable({
       }
 
       if (levelFilter !== 'ALL' && s.level !== levelFilter) return false;
-      if (degreeFilter !== 'ALL' && s.degree !== degreeFilter) return false;
-      if (hallFilter !== 'ALL' && s.hall !== hallFilter) return false;
       if (instructorFilter === 'UNASSIGNED' ? !!s.instructorId : instructorFilter !== 'ALL' && s.instructorId !== instructorFilter) return false;
       if (topicFilter !== 'ALL' && normalizeTopicValue(s.currentTopic) !== normalizeTopicValue(topicFilter)) return false;
 
@@ -115,13 +110,9 @@ export function StudentRosterTable({
       return [...matches].sort(compareStudentProgress);
     }
     return matches;
-  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, degreeFilter, statusFilter, hallFilter, topicFilter, instructorFilter, sortMode]);
+  }, [students, currentInstructor, currentInstructorEmail, isAllDirectory, search, levelFilter, statusFilter, topicFilter, instructorFilter, sortMode]);
 
-  // Filter options come from the data, so new halls (e.g. "Cabin 1") and instructors appear automatically.
-  const hallOptions = useMemo(
-    () => Array.from(new Set(students.map((s) => s.hall))).sort((a, b) => (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, undefined, { numeric: true })),
-    [students]
-  );
+  // Instructor filter options come from the data, so new instructors appear automatically.
   const instructorOptions = useMemo(() => {
     const byId = new Map<string, string>();
     for (const s of students) if (s.instructorId) byId.set(s.instructorId, s.instructorFullName ?? s.instructor);
@@ -192,10 +183,11 @@ export function StudentRosterTable({
 
       <LevelOverview students={scoped} activeLevel={levelFilter} activeStatus={statusFilter} onSelect={applyOverviewFilter} />
 
-      {/* Filter and search toolbar - High utility, compact */}
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900 transition-colors">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-400" />
+      {/* Search and filters. Phones: search on top, filters in a 2-column grid. Tablets: filters wrap under the
+          search. Wide screens: one row, the search taking the free space. */}
+      <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900 transition-colors xl:flex-row xl:items-center">
+        <div className="relative w-full xl:min-w-[16rem] xl:flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="Search by student name, instructor, or ID..."
@@ -204,19 +196,16 @@ export function StudentRosterTable({
               setSearch(e.target.value);
               setPage(1);
             }}
+            aria-label="Search students"
             className="h-8 w-full rounded-md border border-zinc-200 bg-white pl-8 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:bg-white focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 transition-colors"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="mr-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-            <span className="text-zinc-500 dark:text-zinc-400">Showing </span>
+        <div className="grid grid-cols-2 items-center gap-1.5 sm:flex sm:flex-wrap xl:flex-nowrap">
+          <div className="col-span-2 flex h-8 items-center whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+            <span className="text-zinc-500 dark:text-zinc-400">Showing&nbsp;</span>
             <span className="font-mono text-zinc-900 dark:text-zinc-100">{filtered.length}</span>
-            <span className="text-zinc-500 dark:text-zinc-400"> students</span>
-          </div>
-          <div className="flex items-center gap-1 text-zinc-400 pl-1 mr-1 hidden lg:flex">
-            <SlidersHorizontal className="h-3 w-3" />
-            <span className="text-[11px]">Filters:</span>
+            <span className="text-zinc-500 dark:text-zinc-400">&nbsp;students</span>
           </div>
 
           <select
@@ -225,7 +214,8 @@ export function StudentRosterTable({
               setLevelFilter(e.target.value);
               setPage(1);
             }}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+            aria-label="Level"
+            className="h-8 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors sm:w-auto"
           >
             <option value="ALL">All Levels</option>
             {LEVELS.map((level) => (
@@ -234,25 +224,13 @@ export function StudentRosterTable({
           </select>
 
           <select
-            value={degreeFilter}
-            onChange={(e) => {
-              setDegreeFilter(e.target.value);
-              setPage(1);
-            }}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
-          >
-            <option value="ALL">All Colleges</option>
-            <option value="CDU">CDU</option>
-            <option value="BITS">BITS</option>
-          </select>
-
-          <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+            aria-label="Status"
+            className="h-8 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors sm:w-auto"
           >
             <option value="ALL">All Statuses</option>
             {STATUS_KEYS.map((key) => (
@@ -266,25 +244,12 @@ export function StudentRosterTable({
               setTopicFilter(e.target.value);
               setPage(1);
             }}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+            aria-label="Topic"
+            className="h-8 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors sm:w-auto sm:max-w-[13rem]"
           >
             <option value="ALL">All Topics</option>
             {ALL_TOPICS.map((topic) => (
               <option key={topic} value={topic}>{topic}</option>
-            ))}
-          </select>
-
-          <select
-            value={hallFilter}
-            onChange={(e) => {
-              setHallFilter(e.target.value);
-              setPage(1);
-            }}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors hidden md:block"
-          >
-            <option value="ALL">All Halls</option>
-            {hallOptions.map((hall) => (
-              <option key={hall || 'none'} value={hall}>{hall || 'No hall'}</option>
             ))}
           </select>
 
@@ -296,7 +261,7 @@ export function StudentRosterTable({
                 setPage(1);
               }}
               aria-label="Instructor"
-              className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+              className="h-8 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors sm:w-auto sm:max-w-[13rem]"
             >
               <option value="ALL">All Instructors</option>
               <option value="UNASSIGNED">Unassigned ({unassignedCount})</option>
@@ -313,7 +278,8 @@ export function StudentRosterTable({
                 setSortMode(e.target.value as 'natural' | 'top-performing');
                 setPage(1);
               }}
-              className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors"
+              aria-label="Sort"
+              className="h-8 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 hover:bg-zinc-50 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-colors sm:w-auto"
             >
               <option value="natural">Default order</option>
               <option value="top-performing">Top performing</option>
