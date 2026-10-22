@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { getPool } from './client';
 import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
-import { LEVELS, coerceStep, coerceSubtopic, getDefaultTopicForLevel, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions } from '../lib/multiLevelCurriculum';
+import { LEVELS, coerceStep, coerceSubtopic, getDefaultTopicForLevel, getReachedStepOptions, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
 import { STRICT_RULE_FROM, requiredTopicsByLevelNumber } from '../lib/levelCompletion';
 import { hashPassword } from './auth';
@@ -35,6 +35,8 @@ const INTERACTION_JSON = `
     'currentStep', it.current_step,
     'currentSubtopic', it.current_subtopic,
     'subtopics', it.subtopics,
+    -- to_jsonb lookup so reads also work on a database not yet migrated (no steps_reached column).
+    'stepsReached', COALESCE(to_jsonb(it)->'steps_reached', '{}'::jsonb),
     'topics', it.topics,
     'statusPostInteraction', it.status_post_interaction,
     'rating', it.rating::float,
@@ -271,8 +273,8 @@ export async function insertInteraction(
     `INSERT INTO interactions (id, student_id, student_name, instructor_name, instructor_email, taken_by_instructor_id,
        assigned_instructor_id, assigned_instructor_name, level, current_step, topics, status_post_interaction, rating,
        questions_asked, remarks, performed_well, improvement_areas, tweaked_questions, action_items, meet_recording,
-       granola_transcript, interaction_round, date, created_at, created_by, current_subtopic, subtopics)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       granola_transcript, interaction_round, date, created_at, created_by, current_subtopic, subtopics, steps_reached)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
      ${options.skipExisting ? 'ON CONFLICT (id) DO NOTHING' : ''}`,
     [
       log.id, log.studentId, log.studentName, log.instructorName || '', log.instructorEmail ?? null, takenBy?.id ?? null,
@@ -286,6 +288,7 @@ export async function insertInteraction(
       // Snapshot like level/step: the form sends it; older clients don't, so fall back to the student's.
       (log.currentSubtopic !== undefined ? log.currentSubtopic : student.currentSubtopic) ?? null,
       cleanSubtopics(log.subtopics),
+      JSON.stringify(log.stepsReached ?? {}),
     ]
   );
   return (result.rowCount ?? 0) > 0;
@@ -318,6 +321,21 @@ function validateSubtopics(level: string | undefined, topics: string | undefined
   const options = getSubtopicOptions(level ?? 'Level 0', topicList[0]);
   const unknown = chosen.filter((s) => !options.includes(s));
   if (unknown.length) throw new ValidationError(`Not subtopics of ${topicList[0]}: ${unknown.join(', ')}.`);
+}
+
+// Steps reached: one valid step code per subtopic covered (or per topic when the interaction has no subtopics).
+// Entries for anything not covered are dropped. Level 0 has no steps.
+function cleanStepsReached(level: string | undefined, topics: string | undefined, subtopics: string | undefined, steps: unknown): Record<string, string> {
+  const codes = getReachedStepOptions(level).map((s) => s.code);
+  if (!codes.length || !steps || typeof steps !== 'object') return {};
+  const covered = splitList(subtopics).length ? splitList(subtopics) : splitList(topics);
+  const cleaned: Record<string, string> = {};
+  for (const [name, code] of Object.entries(steps as Record<string, unknown>)) {
+    if (!covered.includes(name)) continue;
+    if (typeof code !== 'string' || !codes.includes(code)) throw new ValidationError(`Choose a valid step for ${name}.`);
+    cleaned[name] = code;
+  }
+  return cleaned;
 }
 
 async function getInteraction(id: string): Promise<InteractionLog | null> {
@@ -394,13 +412,14 @@ export async function updateInteraction(
       `UPDATE interactions SET date = $2, instructor_name = $3, taken_by_instructor_id = $4, topics = $5,
          status_post_interaction = $6, rating = $7, questions_asked = $8, remarks = $9, performed_well = $10,
          improvement_areas = $11, tweaked_questions = $12, action_items = $13, meet_recording = $14,
-         updated_at = now(), updated_by = $15, subtopics = $16
+         updated_at = now(), updated_by = $15, subtopics = $16, steps_reached = $17
        WHERE id = $1`,
       [
         id, next.date, takenBy.name, takenBy.id, next.topics || '', next.statusPostInteraction, Number(next.rating),
         next.questionsAsked || '', next.remarks || '', next.performedWell || '', next.improvementAreas || '',
         next.tweakedQuestions || '', next.actionItems || '', next.meetRecording || '', actor.id,
         cleanSubtopics(next.subtopics),
+        JSON.stringify(cleanStepsReached(current.level, next.topics, next.subtopics, next.stepsReached)),
       ]
     );
   } finally {
@@ -421,7 +440,8 @@ export async function addInteraction(log: InteractionLog, actor: InstructorUser)
     assertCanEdit(student, actor);
 
     validateSubtopics(log.level ?? student.level, log.topics, log.subtopics);
-    await insertInteraction(client, log, student, { createdBy: actor.id });
+    const stepsReached = cleanStepsReached(log.level ?? student.level, log.topics, log.subtopics, log.stepsReached);
+    await insertInteraction(client, { ...log, stepsReached }, student, { createdBy: actor.id });
     await client.query('UPDATE students SET status = $2, updated_at = now() WHERE id = $1', [log.studentId, statusAfterInteraction(log)]);
     await client.query('COMMIT');
 

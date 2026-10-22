@@ -128,6 +128,10 @@ ALTER TABLE interactions ADD COLUMN IF NOT EXISTS current_subtopic TEXT;
 -- Subtopics covered in the interaction, comma-joined like topics (e.g. "LCM & GCD, Prime Numbers"); empty for topics
 -- without subtopics and for interactions logged before 2026-10-14. Interactions with subtopics have exactly one topic.
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS subtopics TEXT NOT NULL DEFAULT '';
+-- Step the student reached in each subtopic covered (or each topic, for topics without subtopics), keyed by name:
+-- {"Digit Manipulation": "3.1", "LCM & GCD": "2.2"}. Codes are REACHED_STEPS in lib/multiLevelCurriculum.ts.
+-- Empty for Level 0 and for interactions logged before 2026-10-22 (old rows are never backfilled).
+ALTER TABLE interactions ADD COLUMN IF NOT EXISTS steps_reached JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- Deleted interactions (duplicates, wrong details). A delete moves the row here, so every query, count and
 -- status (all read `interactions`) drops it with no extra filter. `data` is the full row as JSON, so a

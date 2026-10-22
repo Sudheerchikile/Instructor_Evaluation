@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { InteractionLog } from '@/lib/types';
-import { formatLogTopics } from '@/lib/storage';
+import { formatLogTopics, formatStepsReached } from '@/lib/storage';
 import { todayLocal } from '@/lib/dates';
 import { 
   Search, 
@@ -258,6 +258,7 @@ export function InteractionLogsTable({
               {([
                 ['Topics', selectedLog.topics, false],
                 ...(selectedLog.subtopics ? [['Subtopics', selectedLog.subtopics, false] as const] : []),
+                ...(formatStepsReached(selectedLog) ? [['Steps Reached', formatStepsReached(selectedLog).split('; ').join('\n'), false] as const] : []),
                 ['Questions Asked', selectedLog.questionsAsked, true],
                 ['Remarks by Instructor', selectedLog.remarks, false],
                 ['Performed Well', selectedLog.performedWell, false],

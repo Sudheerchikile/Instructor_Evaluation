@@ -8,11 +8,11 @@ import {
   InteractionDraftFields, clearInteractionDraft, interactionDraftKey, loadInteractionDraft, saveInteractionDraft,
 } from '@/lib/interactionDraft';
 import { SHEET_COLUMNS, SheetRowResult, parseSheetRow } from '@/lib/sheetRowParser';
-import { instructorNamesMatch } from '@/lib/storage';
+import { effectiveStepsReached, instructorNamesMatch } from '@/lib/storage';
 import { X, Save, RotateCcw, ClipboardPaste, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { InstructorPicker } from '@/components/InstructorPicker';
 import { TopicMultiPicker } from '@/components/TopicMultiPicker';
-import { getSubtopicOptions, getTopicOptions } from '@/lib/multiLevelCurriculum';
+import { getReachedStepOptions, getSubtopicOptions, getTopicOptions } from '@/lib/multiLevelCurriculum';
 
 // Topics are stored as one comma-separated string (the DB column and CSV export stay unchanged).
 const TOPIC_SEPARATOR = ', ';
@@ -74,6 +74,9 @@ export function PostInteractionModal({
         ? subtopicMode ? (editedTopics.length === 1 && editedValidTopics.length === 1 ? editedValidTopics : []) : editedTopics
         : subtopicMode && startTopic ? [startTopic] : [],
       subtopics: editing ? splitTopics(editing.subtopics) : subtopicMode ? startSubtopic : [],
+      // Filled by hand for each subtopic/topic covered; a new log starts with none picked. An edit starts from the
+      // saved steps, with 3.1 for a subtopic of an older log that has none (effectiveStepsReached).
+      stepsReached: editing ? effectiveStepsReached(editing) : {},
       statusPostInteraction: saved === 'Cleared' || saved === 'In Progress' || saved === 'Need to Revisit' ? saved : 'Need to Revisit',
       rating: editing ? Number(editing.rating) : 0,
       questionsAsked: editing?.questionsAsked ?? '',
@@ -100,6 +103,8 @@ export function PostInteractionModal({
   const [topicsError, setTopicsError] = useState(false);
   const [subtopics, setSubtopics] = useState<string[]>(initial.subtopics ?? []);
   const [subtopicsError, setSubtopicsError] = useState(false);
+  const [stepsReached, setStepsReached] = useState<Record<string, string>>(initial.stepsReached ?? {});
+  const [stepsError, setStepsError] = useState(false);
   const [statusPostInteraction, setStatusPostInteraction] = useState<InteractionDraftFields['statusPostInteraction']>(initial.statusPostInteraction);
   const [rating, setRating] = useState<number>(initial.rating);
   const [questionsAsked, setQuestionsAsked] = useState<string>(initial.questionsAsked);
@@ -112,7 +117,7 @@ export function PostInteractionModal({
 
   // Keep the draft in step with every change; a form still equal to its starting values stores nothing.
   const fields: InteractionDraftFields = {
-    interactionDate, takenById, topics, subtopics, statusPostInteraction, rating, questionsAsked, remarks,
+    interactionDate, takenById, topics, subtopics, stepsReached, statusPostInteraction, rating, questionsAsked, remarks,
     performedWell, improvementAreas, tweakedQuestions, actionItems, meetRecording,
   };
   const fieldsJson = JSON.stringify(fields);
@@ -127,6 +132,7 @@ export function PostInteractionModal({
     setTakenById(defaults.takenById);
     setTopics(defaults.topics);
     setSubtopics(defaults.subtopics ?? []);
+    setStepsReached(defaults.stepsReached ?? {});
     setStatusPostInteraction(defaults.statusPostInteraction);
     setRating(defaults.rating);
     setQuestionsAsked(defaults.questionsAsked);
@@ -182,6 +188,18 @@ export function PostInteractionModal({
   // An edit offers the topics of the level the interaction was logged at.
   const topicOptions = getTopicOptions(formLevel);
   const subtopicOptions = subtopicMode && topics[0] ? getSubtopicOptions(formLevel, topics[0]) : [];
+  // One step per subtopic covered (in curriculum order), or per topic when there are no subtopics. Level 0: none.
+  // Required for every subtopic/topic covered.
+  const stepOptions = getReachedStepOptions(formLevel);
+  const stepItems = stepOptions.length ? (subtopicOptions.length ? subtopicOptions.filter((s) => subtopics.includes(s)) : topics) : [];
+  const stepsRequired = stepItems.length > 0;
+  const setStep = (item: string, code: string) => {
+    setStepsReached((prev) => {
+      const next = { ...prev };
+      if (code) next[item] = code; else delete next[item];
+      return next;
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +209,9 @@ export function PostInteractionModal({
     if (topics.length === 0) setTopicsError(true);
     const missingSubtopics = subtopicOptions.length > 0 && subtopics.length === 0;
     if (missingSubtopics) setSubtopicsError(true);
-    if (!interactionDate || !takenBy || topics.length === 0 || missingSubtopics) return;
+    const missingSteps = stepsRequired && stepItems.some((item) => !stepsReached[item]);
+    if (missingSteps) setStepsError(true);
+    if (!interactionDate || !takenBy || topics.length === 0 || missingSubtopics || missingSteps) return;
 
     const log: InteractionLog = {
       ...(editing ?? {}),
@@ -204,6 +224,8 @@ export function PostInteractionModal({
       topics: topics.join(TOPIC_SEPARATOR),
       // Only the chosen topic's subtopics, in curriculum order; the plain topic picker keeps what the log had.
       subtopics: subtopicMode ? subtopicOptions.filter((s) => subtopics.includes(s)).join(TOPIC_SEPARATOR) : editing?.subtopics ?? '',
+      // Only the subtopics/topics still selected (steps picked for one that was later removed are dropped).
+      stepsReached: Object.fromEntries(stepItems.filter((item) => stepsReached[item]).map((item) => [item, stepsReached[item]])),
       statusPostInteraction,
       rating,
       questionsAsked,
@@ -443,6 +465,36 @@ export function PostInteractionModal({
                 />
                 {topicsError && <p className="mt-1 text-[11px] text-rose-500">Select at least one topic.</p>}
               </div>
+            </div>
+          )}
+
+          {/* Step reached, one per subtopic (or topic) covered */}
+          {stepItems.length > 0 && (
+            <div>
+              <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Step Reached {stepsRequired && <span className="text-rose-500">*</span>}
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {stepItems.map((item) => {
+                  const missing = stepsError && stepsRequired && !stepsReached[item];
+                  return (
+                    <div key={item} className="flex items-center gap-2">
+                      <span className="w-40 shrink-0 truncate text-zinc-700 dark:text-zinc-300" title={item}>{item}</span>
+                      <select
+                        value={stepsReached[item] ?? ''}
+                        onChange={(e) => { setStep(item, e.target.value); setStepsError(false); }}
+                        className={`h-8 min-w-0 flex-1 rounded-md border bg-white px-2.5 text-xs text-zinc-900 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${missing ? 'border-rose-400' : 'border-zinc-200 dark:border-zinc-800'}`}
+                      >
+                        <option value="">Select step</option>
+                        {stepOptions.map((s) => <option key={s.code} value={s.code}>{s.code} {s.label}</option>)}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              {stepsError && stepsRequired
+                ? <p className="mt-1 text-[11px] text-rose-500">Select the step reached for each {subtopicOptions.length ? 'subtopic' : 'topic'}.</p>
+                : <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">The last step the student solved, e.g. 3.1 = up to a medium standard question.</p>}
             </div>
           )}
 

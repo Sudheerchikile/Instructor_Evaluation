@@ -58,6 +58,7 @@ export interface InteractionLog {
   currentStep?: string;  // student's step when the interaction was logged
   currentSubtopic?: string | null; // student's subtopic when the interaction was logged
   subtopics?: string;              // subtopics covered, comma-joined; set only when the topic has subtopics
+  stepsReached?: Record<string, string>; // step code reached per subtopic (or topic) covered, e.g. { "LCM & GCD": "3.1" }
   date: string;
   createdAt: string;
   createdBy?: string | null;  // user id of whoever logged it

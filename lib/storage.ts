@@ -1,5 +1,6 @@
 import { Student, InteractionLog, InstructorSummary } from './types';
 import { normalizeInstructorName } from './instructorDirectory';
+import { pastDefaultStep, getReachedStepOptions, reachedStepLabel } from './multiLevelCurriculum';
 
 export { normalizeInstructorName } from './instructorDirectory';
 
@@ -76,17 +77,36 @@ export function getInstructorSummaries(students: Student[]): InstructorSummary[]
   return Array.from(map.values()).map((d) => ({ id: d.id, name: d.name, email: d.email, assignedCount: d.assigned, completedCount: d.completed, revisitCount: d.revisit, clearedCount: d.cleared, primaryHall: Array.from(d.halls).join(', ') || 'N/A', levels: Array.from(d.levels) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// "Maths › LCM & GCD, Prime Numbers" for an interaction with subtopics, else just its topics.
-export function formatLogTopics(log: Pick<InteractionLog, 'topics' | 'subtopics'>): string {
-  return log.subtopics ? `${log.topics} › ${log.subtopics}` : log.topics;
+const splitNames = (list: string | undefined) => (list ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+
+// Step reached per subtopic covered (or per topic without subtopics). From Level 1 up, a subtopic with no step
+// logged (interactions from before 2026-10-22) counts as pastDefaultStep (3.1 if Cleared, else 2.1); this is display only and never written
+// back, and an instructor who edits such a log starts from it. Level 0 (and logs without a level): none.
+export function effectiveStepsReached(log: Pick<InteractionLog, 'level' | 'topics' | 'subtopics' | 'stepsReached' | 'statusPostInteraction'>): Record<string, string> {
+  if (!getReachedStepOptions(log.level).length) return {};
+  const covered = splitNames(log.subtopics).length ? splitNames(log.subtopics) : splitNames(log.topics);
+  return Object.fromEntries(covered.map((name) => [name, log.stepsReached?.[name] || pastDefaultStep(log.statusPostInteraction)]));
+}
+
+// "Maths › LCM & GCD (3.1), Prime Numbers (2.2)" for an interaction with subtopics, else its topics, each followed
+// by the step reached (from Level 1 up).
+export function formatLogTopics(log: Pick<InteractionLog, 'level' | 'topics' | 'subtopics' | 'stepsReached' | 'statusPostInteraction'>): string {
+  const steps = effectiveStepsReached(log);
+  const withSteps = (list: string | undefined) => splitNames(list).map((t) => (steps[t] ? `${t} (${steps[t]})` : t)).join(', ');
+  return log.subtopics ? `${log.topics} › ${withSteps(log.subtopics)}` : withSteps(log.topics);
+}
+
+// "LCM & GCD: 3.1 Medium standard question; Prime Numbers: 2.2 Easy tweaked question", or '' at Level 0.
+export function formatStepsReached(log: Pick<InteractionLog, 'level' | 'topics' | 'subtopics' | 'stepsReached' | 'statusPostInteraction'>): string {
+  return Object.entries(effectiveStepsReached(log)).map(([name, code]) => `${name}: ${reachedStepLabel(code)}`).join('; ');
 }
 
 export function exportInteractionsToCSV(interactions: InteractionLog[]): void {
-  const headers = ["Instructor's Name","Instructor Email","Topics","Subtopics","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
+  const headers = ["Instructor's Name","Instructor Email","Topics","Subtopics","Steps Reached","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
   const esc = (v: string | number | undefined | null) => { if (v == null) return '""'; return `"${String(v).replace(/"/g, '""')}"`; };
   const rows = [headers.map(esc).join(',')];
   for (const log of interactions) {
-    rows.push([log.instructorName, log.instructorEmail ?? '', log.topics, log.subtopics ?? '', log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript].map(esc).join(','));
+    rows.push([log.instructorName, log.instructorEmail ?? '', log.topics, log.subtopics ?? '', formatStepsReached(log), log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript].map(esc).join(','));
   }
   const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

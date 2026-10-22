@@ -7,6 +7,7 @@ export interface InteractionDraftFields {
   takenById: string | null;
   topics: string[];
   subtopics?: string[]; // absent in drafts saved before subtopics existed
+  stepsReached?: Record<string, string>; // absent in drafts saved before step tracking existed
   statusPostInteraction: 'Need to Revisit' | 'Cleared' | 'In Progress';
   rating: number;
   questionsAsked: string;

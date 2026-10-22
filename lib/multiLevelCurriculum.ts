@@ -75,6 +75,33 @@ export function getDefaultStepForLevel(level: string): string {
   return getStepOptionsForTopic(level, getDefaultTopicForLevel(level))[0];
 }
 
+// Step reached in an interaction, picked per subtopic (or per topic when it has no subtopics) in the Log
+// Interaction form. "3.1" means the student solved up to a medium standard question there. One list for every
+// topic for now (decided 2026-10-22); some topics may later drop the easy or hard steps. Level 0 has no steps.
+export const REACHED_STEPS: Array<{ code: string; label: string }> = [
+  { code: '1.1', label: 'Theory: concept & prerequisites' },
+  { code: '1.2', label: 'Theory: complexity & reasoning' },
+  { code: '2.1', label: 'Easy standard question' },
+  { code: '2.2', label: 'Easy tweaked question' },
+  { code: '3.1', label: 'Medium standard question' },
+  { code: '3.2', label: 'Medium tweaked question' },
+  { code: '4.1', label: 'Hard standard question' },
+];
+
+// Step assumed for interactions logged (from Level 1 up) before steps existed, until an instructor edits it
+// (user, 2026-10-22): 3.1 when the interaction was Cleared, else (Need to Revisit / In Progress) 2.1.
+export const pastDefaultStep = (status: string | undefined) => (status === 'Cleared' ? '3.1' : '2.1');
+
+export function getReachedStepOptions(level: string | undefined): Array<{ code: string; label: string }> {
+  return !level || level === 'Level 0' ? [] : REACHED_STEPS;
+}
+
+// "3.1" → "3.1 Medium standard question"; unknown codes are shown as stored.
+export function reachedStepLabel(code: string): string {
+  const step = REACHED_STEPS.find((s) => s.code === code);
+  return step ? `${step.code} ${step.label}` : code;
+}
+
 // Keeps a step valid after the topic changes (e.g. a Level 2 "4.1 hard" step moved to a Level 1 topic).
 export function coerceStep(level: string, topic: string, step: string | undefined): string {
   const options = getStepOptionsForTopic(level, topic);
