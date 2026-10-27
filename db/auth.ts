@@ -49,7 +49,11 @@ const toUser = (row: UserRow): InstructorUser => ({
 });
 
 export async function authenticate(email: string, password: string): Promise<InstructorUser | null> {
-  const { rows } = await getPool().query<UserRow>('SELECT * FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+  // Instructors who have left (instructors.left_on set) can no longer sign in; admins have no instructor row.
+  const { rows } = await getPool().query<UserRow>(
+    `SELECT u.* FROM users u LEFT JOIN instructors i ON i.id = u.instructor_id WHERE u.email = $1 AND i.left_on IS NULL`,
+    [email.trim().toLowerCase()]
+  );
   const row = rows[0];
   const valid = await verifyPassword(password, row?.password_hash ?? DUMMY_HASH);
   return row && valid ? toUser(row) : null;
@@ -69,7 +73,8 @@ export async function createSession(userId: string): Promise<string> {
 export async function getSessionUser(token: string | undefined): Promise<InstructorUser | null> {
   if (!token) return null;
   const { rows } = await getPool().query<UserRow>(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()`,
+    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id LEFT JOIN instructors i ON i.id = u.instructor_id
+     WHERE s.token_hash = $1 AND s.expires_at > now() AND i.left_on IS NULL`,
     [hashToken(token)]
   );
   return rows[0] ? toUser(rows[0]) : null;

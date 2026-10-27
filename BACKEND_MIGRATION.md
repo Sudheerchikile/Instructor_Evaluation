@@ -478,6 +478,9 @@ Because the data lives separately in each browser (§1), there is no single curr
     - Reads use `to_jsonb(it)->'steps_reached'`, so the app also runs on a database not yet migrated (saving a new interaction still needs the column).
     - Server (`cleanStepsReached`): keeps only entries for subtopics/topics the interaction covers and rejects unknown codes. The student's own `current_step` is not changed.
     - Shown beside each name, "Maths › Digit Manipulation (3.1), LCM & GCD (2.2)", everywhere `formatLogTopics` is used; Inspect has a "Steps Reached" row with full labels; the CSV export has a "Steps Reached" column after "Subtopics".
+38. **Instructors who have left** (2026-10-27).
+    - New column `instructors.left_on` (date, NULL = still working). An instructor with it set is hidden from the Instructors page, the "Interaction Taken By" dropdown and assignment, and can no longer sign in (login and existing sessions both check it). The row is kept, so past interactions still show who took them; editing such an interaction keeps that instructor selectable.
+    - Akarsh Jain (INS002) and Shubham Sharma (INS025) resigned: their students moved to Konda Harika (INS050, 20 students) and Ashwin Satish (INS051, 20 students), and both were marked `left_on = 2026-10-27` (user's request). Past interactions keep their "assigned instructor" snapshot. `lib/data/students.json` still says Akarsh/Shubham; re-seeding keeps existing students' instructors, so it doesn't undo this.
 
 ### Known open issues (not yet fixed)
 - There's no limit on repeated failed login attempts yet.

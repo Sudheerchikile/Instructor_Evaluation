@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS instructors (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS instructors_first_name_idx ON instructors (lower(first_name));
+-- Instructors who have left: set by hand (e.g. UPDATE instructors SET left_on = '2026-10-27' WHERE id = '...') after
+-- moving their students to someone else. They disappear from the Instructors page and the instructor dropdowns and
+-- can no longer sign in; the row stays so their past interactions keep their names.
+ALTER TABLE instructors ADD COLUMN IF NOT EXISTS left_on DATE;
 
 -- Login accounts, created only by `npm run db:users` (no self-registration). Admins have no instructor_id.
 CREATE TABLE IF NOT EXISTS users (

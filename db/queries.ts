@@ -610,7 +610,7 @@ export async function assignStudentsToInstructor(instructorId: string, rollNumbe
   try {
     await client.query('BEGIN');
     const { rows: [instructor] } = await client.query<{ id: string; first_name: string; full_name: string; email: string }>(
-      'SELECT id, first_name, full_name, email FROM instructors WHERE id = $1 FOR UPDATE',
+      'SELECT id, first_name, full_name, email FROM instructors WHERE id = $1 AND left_on IS NULL FOR UPDATE',
       [instructorId]
     );
     if (!instructor) throw new ValidationError('Instructor not found.');
@@ -633,10 +633,10 @@ export async function assignStudentsToInstructor(instructorId: string, rollNumbe
   }
 }
 
-// Names and ids only, for the "Interaction Taken By" dropdown (any signed-in user).
+// Names and ids only, for the "Interaction Taken By" dropdown (any signed-in user). Instructors who have left are hidden.
 export async function getInstructorOptions(): Promise<InstructorOption[]> {
   const { rows } = await getPool().query<{ id: string; first_name: string; full_name: string }>(
-    'SELECT id, first_name, full_name FROM instructors ORDER BY full_name'
+    'SELECT id, first_name, full_name FROM instructors WHERE left_on IS NULL ORDER BY full_name'
   );
   return rows.map((r) => ({ id: r.id, name: r.full_name, firstName: r.first_name }));
 }
@@ -658,6 +658,7 @@ export async function getInstructorList(): Promise<InstructorListEntry[]> {
             ) AS students
      FROM instructors i
      LEFT JOIN student_overview o ON o.instructor_id = i.id
+     WHERE i.left_on IS NULL
      GROUP BY i.id
      ORDER BY i.full_name`
   );

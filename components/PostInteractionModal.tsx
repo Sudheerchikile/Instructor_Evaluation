@@ -45,7 +45,7 @@ export function PostInteractionModal({
   student,
   currentInstructorId,
   draftOwnerId,
-  instructorOptions,
+  instructorOptions: activeInstructorOptions,
   initialDraft,
   onSave,
   editing = null
@@ -88,6 +88,10 @@ export function PostInteractionModal({
       meetRecording: editing?.meetRecording ?? '',
     };
   });
+  // Instructors who have left are not in the dropdown; an edit of an interaction one of them took keeps them as an option.
+  const instructorOptions = editing?.takenByInstructorId && !activeInstructorOptions.some((o) => o.id === editing.takenByInstructorId)
+    ? [...activeInstructorOptions, { id: editing.takenByInstructorId, name: editing.instructorName, firstName: editing.instructorName.split(' ')[0] }]
+    : activeInstructorOptions;
   // Unsaved entries from an earlier open of this same form (reload, lost connection, closed by mistake).
   const draftKey = student && draftOwnerId ? interactionDraftKey(draftOwnerId, { studentId: student.id, editingId: editing?.id }) : null;
   const [restored, setRestored] = useState(() => (draftKey ? loadInteractionDraft(draftKey) : null));
