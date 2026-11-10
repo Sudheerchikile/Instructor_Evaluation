@@ -101,16 +101,29 @@ export function formatStepsReached(log: Pick<InteractionLog, 'level' | 'topics' 
   return Object.entries(effectiveStepsReached(log)).map(([name, code]) => `${name}: ${reachedStepLabel(code)}`).join('; ');
 }
 
-export function exportInteractionsToCSV(interactions: InteractionLog[]): void {
-  const headers = ["Instructor's Name","Instructor Email","Topics","Subtopics","Steps Reached","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
-  const esc = (v: string | number | undefined | null) => { if (v == null) return '""'; return `"${String(v).replace(/"/g, '""')}"`; };
-  const rows = [headers.map(esc).join(',')];
-  for (const log of interactions) {
-    rows.push([log.instructorName, log.instructorEmail ?? '', log.topics, log.subtopics ?? '', formatStepsReached(log), log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript].map(esc).join(','));
-  }
-  const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+type CsvCell = string | number | undefined | null;
+
+function downloadCSV(filename: string, headers: string[], rows: CsvCell[][]): void {
+  const esc = (v: CsvCell) => { if (v == null) return '""'; return `"${String(v).replace(/"/g, '""')}"`; };
+  const lines = [headers, ...rows].map((r) => r.map(esc).join(','));
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `dsa_interactions_${new Date().toISOString().split('T')[0]}.csv`;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function exportInteractionsToCSV(interactions: InteractionLog[], fileDate: string = new Date().toISOString().split('T')[0]): void {
+  const headers = ["Instructor's Name","Instructor Email","Topics","Subtopics","Steps Reached","Status Post Interaction","Rating","Questions Asked","Remarks","Performed Well","Improvement Areas","Tweaked Questions","Action Items","Interaction Cell Link","Granola Transcript"];
+  const rows = interactions.map((log) => [log.instructorName, log.instructorEmail ?? '', log.topics, log.subtopics ?? '', formatStepsReached(log), log.statusPostInteraction, log.rating, log.questionsAsked, log.remarks, log.performedWell, log.improvementAreas, log.tweakedQuestions, log.actionItems, log.meetRecording, log.granolaTranscript]);
+  downloadCSV(`dsa_interactions_${fileDate}.csv`, headers, rows);
+}
+
+// Student directory: one row per student, as shown in the Directory table. statusLabel turns the stored status into the
+// label the table shows (e.g. "Not interacted yet").
+export function exportStudentsToCSV(students: Student[], statusLabel: (s: Student) => string, fileName = 'dsa_students'): void {
+  const headers = ['Roll No', 'Student Name', 'College', 'Section', 'Exam Hall', 'Assigned Instructor', 'Instructor Email', 'Level', 'Current Topic', 'Subtopic', 'Current Step', 'Status', 'Interactions', 'Last Interaction'];
+  const rows = students.map((s) => [s.id, s.name, s.degree, s.section, s.hall, s.instructorFullName ?? s.instructor, s.instructorEmail ?? '', s.level, s.currentTopic ?? '', s.currentSubtopic ?? '', s.currentStep ?? '', statusLabel(s), s.interactionCount, s.lastInteractionDate ?? '']);
+  downloadCSV(`${fileName}_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
 }

@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Student, InteractionLog, InstructorUser, InstructorOption } from "@/lib/types";
-import { getInstructorSummaries, exportInteractionsToCSV, isStudentAssignedTo } from "@/lib/storage";
+import { getInstructorSummaries, exportInteractionsToCSV, exportStudentsToCSV, isStudentAssignedTo } from "@/lib/storage";
+import { STATUS_META, statusKeyOf } from "@/components/LevelOverview";
 import { coerceStep, coerceSubtopic, getDefaultTopicForLevel } from "@/lib/multiLevelCurriculum";
 import { ApiError, createInteraction, deleteInteraction, fetchCurrentUser, fetchInstructorOptions, fetchInteractions, fetchStudents, signOut, updateInteraction, updateStudentProgress } from "@/lib/api";
 import { AppTab, Navbar } from "@/components/Navbar";
@@ -194,6 +195,16 @@ export default function Home() {
     return interactions.filter((log) => log.date === selectedLogDate);
   }, [interactions, selectedLogDate]);
 
+  // Navbar Export follows the open page: Directory → every student, My Students → the instructor's students,
+  // Today's Interactions → the interactions of the date shown there, anything else → all interactions.
+  const studentStatusLabel = (s: Student) => STATUS_META[statusKeyOf(s)].label;
+  const handleNavbarExport = () => {
+    if (activeTab === "all-students") exportStudentsToCSV(students, studentStatusLabel, "dsa_students");
+    else if (activeTab === "my-students") exportStudentsToCSV(students.filter((s) => isStudentAssignedTo(s, currentUser)), studentStatusLabel, "dsa_my_students");
+    else if (activeTab === "logs") exportInteractionsToCSV(filteredLogsForDate, selectedLogDate);
+    else handleExportCSV();
+  };
+
   if (!authChecked || !currentUser || (!dataLoaded && !dataError)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
@@ -212,7 +223,7 @@ export default function Home() {
         currentUser={currentUser}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onExportCSV={handleExportCSV}
+        onExportCSV={handleNavbarExport}
         onLogout={handleLogout}
         interactionCount={filteredLogsForDate.length}
         totalStudents={students.length}
@@ -261,7 +272,7 @@ export default function Home() {
             interactions={filteredLogsForDate}
             selectedDate={selectedLogDate}
             onDateChange={setSelectedLogDate}
-            onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate)}
+            onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate, selectedLogDate)}
             currentInstructor={currentInstructor}
             canEdit={canEditInteraction}
             onEdit={handleEditInteraction}
