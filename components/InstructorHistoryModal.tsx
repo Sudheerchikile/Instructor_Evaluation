@@ -32,7 +32,6 @@ export function InstructorHistoryModal({ instructor, interactions, onClose }: In
   }, [logs, search]);
 
   const studentCount = new Set(logs.map((log) => log.studentId)).size;
-  const averageRating = logs.length ? (logs.reduce((sum, log) => sum + Number(log.rating || 0), 0) / logs.length).toFixed(1) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
@@ -59,11 +58,10 @@ export function InstructorHistoryModal({ instructor, interactions, onClose }: In
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-2 divide-x divide-[#373e47] border-b border-[#373e47] sm:grid-cols-4">
+        <div className="grid grid-cols-3 divide-x divide-[#373e47] border-b border-[#373e47]">
           <Stat label="Interactions taken" value={logs.length} />
           <Stat label="Students evaluated" value={studentCount} />
           <Stat label="Last interaction" value={<span className="font-mono text-[13px]">{logs[0]?.date ?? '—'}</span>} />
-          <Stat label="Average rating" value={averageRating ? `${averageRating} / 5` : '—'} />
         </div>
 
         {logs.length > 0 && (
