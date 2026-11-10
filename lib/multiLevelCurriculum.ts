@@ -36,7 +36,7 @@ const SUBTOPIC_MAP: Record<string, string[]> = {
   'Level 1|Maths': ['Digit Manipulation', 'LCM & GCD', 'Prime Numbers', 'Fast Exponentiation'],
   'Level 1|STL': ['Set / Unordered Set', 'Map / Unordered Map', 'Stack', 'Queue'],
   'Level 1|Arrays': ['Array Traversal', 'Prefix & Suffix sum', "Kadane's Algo", 'Array Adhoc', 'Array + Map / Set'],
-  'Level 1|String': ['String Traversal', 'Reversal & Palindrome check', 'String + Map'],
+  // String has no subtopics (user, 2026-10-27).
 };
 
 export function getSubtopicOptions(level: string, topic: string | undefined): string[] {
