@@ -285,6 +285,7 @@ export default function Home() {
         <PostInteractionModal key={editingLog?.id ?? postInteractionStudent.id} isOpen onClose={closeInteractionForm} editing={editingLog} student={postInteractionStudent} currentInstructorId={currentUser.instructorId} draftOwnerId={currentUser.id} instructorOptions={instructorOptions} initialDraft={postInteractionDraft} onSave={handleSaveInteraction} />
       )}
       <StudentHistoryModal
+        key={historyStudent?.id ?? "none"}
         isOpen={!!historyStudent}
         onClose={() => setHistoryStudent(null)}
         student={historyStudent}

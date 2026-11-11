@@ -462,6 +462,7 @@ export function AnalyticsDashboard({
       </div>
 
       <StudentHistoryModal
+        key={historyStudent?.id ?? 'none'}
         isOpen={!!historyStudent}
         onClose={() => setHistoryStudent(null)}
         student={historyStudent}

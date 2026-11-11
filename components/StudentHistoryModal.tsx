@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { Student, InteractionLog } from '@/lib/types';
 import { formatLogTopics } from '@/lib/storage';
+import { DateRangeFilter, useDateRange } from '@/components/DateRangeFilter';
 import {
   X,
   ExternalLink,
@@ -95,6 +96,7 @@ export function StudentHistoryModal({
   onDelete
 }: StudentHistoryModalProps) {
   const [expandedTranscripts, setExpandedTranscripts] = useState<Record<string, boolean>>({});
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
   // Latest first; "Interaction N" counts in the order they happened (oldest = 1).
   const timeline = useMemo(() => {
@@ -105,16 +107,25 @@ export function StudentHistoryModal({
     return logs.map((log, index) => ({ log, number: logs.length - index }));
   }, [interactions, student]);
 
+  // Date range: narrows the list and the summary counts. Interaction numbers and "Latest" keep their meaning
+  // across the student's whole history.
+  const range = useDateRange();
+
   if (!isOpen || !student) return null;
 
-  const latest = timeline[0]?.log;
-  const averageRating = timeline.length
-    ? (timeline.reduce((sum, { log }) => sum + Number(log.rating || 0), 0) / timeline.length).toFixed(1)
+  const latestId = timeline[0]?.log.id;
+  const shown = timeline.filter(({ log }) => range.includes(log.date));
+  const averageRating = shown.length
+    ? (shown.reduce((sum, { log }) => sum + Number(log.rating || 0), 0) / shown.length).toFixed(1)
     : null;
 
   const toggleTranscript = (id: string) => {
     setExpandedTranscripts((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+  // Every interaction opens collapsed (header only); click a header to read its details.
+  const toggleCard = (id: string) => setOpenCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  const allOpen = shown.length > 0 && shown.every(({ log }) => openCards[log.id]);
+  const setAllCards = (open: boolean) => setOpenCards(open ? Object.fromEntries(shown.map(({ log }) => [log.id, true])) : {});
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
@@ -159,13 +170,38 @@ export function StudentHistoryModal({
         {/* Summary */}
         <div className="grid grid-cols-2 divide-x divide-[#373e47] border-b border-[#373e47] sm:grid-cols-4">
           <Stat label="Current level" value={student.level} />
-          <Stat label="Interactions" value={timeline.length} />
-          <Stat label="Last interaction" value={<span className="font-mono text-[13px]">{latest?.date ?? '—'}</span>} />
+          <Stat label="Interactions" value={shown.length} />
+          <Stat label="Last interaction" value={<span className="font-mono text-[13px]">{shown[0]?.log.date ?? '—'}</span>} />
           <Stat label="Average rating" value={averageRating ? `${averageRating} / 5` : '—'} />
         </div>
 
+        {timeline.length > 0 && (
+          <div className="flex flex-col gap-2 border-b border-[#373e47] px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[11px] text-[#909dab]">
+              {range.hasRange
+                ? <>Showing <span className="font-mono text-[#cdd9e5]">{shown.length}</span> of {timeline.length} interactions, {range.label}.</>
+                : 'Pick dates to see the interactions taken in that period.'}
+            </p>
+            <DateRangeFilter range={range} idPrefix="sh" />
+          </div>
+        )}
+
+        {/* Expand / collapse every card, just above the list (stays put while the list scrolls) */}
+        {shown.length > 0 && (
+          <div className="flex justify-end px-6 pt-4">
+            <button
+              type="button"
+              onClick={() => setAllCards(!allOpen)}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-[#373e47] bg-[#2d333b] px-2.5 text-[11px] font-medium text-[#adbac7] hover:bg-[#373e47] hover:text-[#cdd9e5] transition-colors cursor-pointer"
+            >
+              {allOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {allOpen ? 'Collapse all' : 'Expand all'}
+            </button>
+          </div>
+        )}
+
         {/* Timeline */}
-        <div className="max-h-[64vh] overflow-y-auto px-6 py-5">
+        <div className={`max-h-[64vh] overflow-y-auto px-6 pb-5 ${shown.length > 0 ? 'pt-3' : 'pt-5'}`}>
           {timeline.length === 0 ? (
             <div className="rounded-lg border border-dashed border-[#545d68] p-10 text-center">
               <Clock className="mx-auto mb-2 h-6 w-6 text-[#768390]" />
@@ -174,13 +210,16 @@ export function StudentHistoryModal({
                 <p className="mt-1 text-xs text-[#909dab]">Use &quot;Log Interaction&quot; to record the first session with {student.name}.</p>
               )}
             </div>
+          ) : shown.length === 0 ? (
+            <p className="py-8 text-center text-xs text-[#909dab]">No interactions {range.label}.</p>
           ) : (
             <ol className="relative space-y-6">
               {/* vertical rail */}
               <span aria-hidden className="absolute left-3.25 top-2 bottom-2 w-px bg-[#373e47]" />
-              {timeline.map(({ log, number }, index) => {
-                const isLatest = index === 0;
+              {shown.map(({ log, number }) => {
+                const isLatest = log.id === latestId;
                 const isExpanded = expandedTranscripts[log.id];
+                const cardOpen = !!openCards[log.id];
                 return (
                   <li key={log.id} className="relative pl-10">
                     <span
@@ -192,9 +231,16 @@ export function StudentHistoryModal({
                     </span>
 
                     <div className="rounded-lg border border-[#373e47] bg-[#2d333b]">
-                      <div className="flex items-start justify-between gap-4 border-b border-[#373e47] px-4 py-3">
-                        <div>
+                      <div className={`flex items-start justify-between gap-4 px-4 py-3 ${cardOpen ? 'border-b border-[#373e47]' : ''}`}>
+                        <button
+                          type="button"
+                          onClick={() => toggleCard(log.id)}
+                          aria-expanded={cardOpen}
+                          title={cardOpen ? 'Hide details' : 'Show details'}
+                          className="min-w-0 flex-1 text-left cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-[#545d68]"
+                        >
                           <div className="flex flex-wrap items-center gap-2">
+                            {cardOpen ? <ChevronUp className="h-3.5 w-3.5 text-[#909dab]" /> : <ChevronDown className="h-3.5 w-3.5 text-[#909dab]" />}
                             <span className="text-xs font-semibold text-[#cdd9e5]">Interaction {number}</span>
                             {isLatest && <span className="rounded bg-[#373e47] px-1.5 py-0.5 text-[10px] font-medium text-[#adbac7]">Latest</span>}
                             <StatusBadge status={log.statusPostInteraction} />
@@ -204,7 +250,7 @@ export function StudentHistoryModal({
                             <span className="font-mono">{log.date}</span> • Taken by <span className="font-medium text-[#adbac7]">{log.instructorName}</span>
                             {log.updatedAt && <span title={`Edited ${new Date(log.updatedAt).toLocaleString()}`}> • edited</span>}
                           </div>
-                        </div>
+                        </button>
                         <div className="flex shrink-0 items-start gap-2">
                           {onEdit && canEdit(log) && (
                             <button
@@ -235,6 +281,7 @@ export function StudentHistoryModal({
                         </div>
                       </div>
 
+                      {cardOpen && (<>
                       <dl className="grid grid-cols-1 gap-3 px-4 py-4 md:grid-cols-2">
                         {log.questionsAsked && <div className="md:col-span-2"><Field label="Questions asked" tone="questions" mono>{log.questionsAsked}</Field></div>}
                         {log.remarks && <Field label="Remarks" tone="remarks">{log.remarks}</Field>}
@@ -273,6 +320,7 @@ export function StudentHistoryModal({
                           {log.granolaTranscript}
                         </div>
                       )}
+                      </>)}
                     </div>
                   </li>
                 );
