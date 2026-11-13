@@ -99,6 +99,16 @@ export function PostInteractionModal({
 
   const [interactionDate, setInteractionDate] = useState(initial.interactionDate);
   const [dateError, setDateError] = useState(false);
+  // After a save attempt, a required feedback field left blank is marked until it is filled.
+  // Performed well / improvement areas / action items (required from 2026-11-13) are required on a new interaction,
+  // and on an edit only if the interaction already had that text (older logs were saved without them).
+  const newRuleApplies = (original: string | undefined) => !editing || !!(original ?? '').trim();
+  const performedWellRequired = newRuleApplies(editing?.performedWell);
+  const improvementAreasRequired = newRuleApplies(editing?.improvementAreas);
+  const actionItemsRequired = newRuleApplies(editing?.actionItems);
+  const [triedSave, setTriedSave] = useState(false);
+  const blankAfterSave = (value: string, needed = true) => needed && triedSave && !value.trim();
+  const feedbackClass = (value: string, needed = true) => blankAfterSave(value, needed) ?'border-rose-400' : 'border-zinc-200 dark:border-zinc-800';
   const studentName = editing?.studentName ?? student?.name ?? '';
   const assignedInstructorName = editing?.assignedInstructorName || student?.instructorFullName || student?.instructor || '';
   const [takenById, setTakenById] = useState<string | null>(initial.takenById);
@@ -215,7 +225,15 @@ export function PostInteractionModal({
     if (missingSubtopics) setSubtopicsError(true);
     const missingSteps = stepsRequired && stepItems.some((item) => !stepsReached[item]);
     if (missingSteps) setStepsError(true);
-    if (!interactionDate || !takenBy || topics.length === 0 || missingSubtopics || missingSteps) return;
+    // Feedback fields must have real text (the browser's `required` accepts spaces only).
+    const missingFeedback = [
+      [questionsAsked, true], [remarks, true],
+      [performedWell, performedWellRequired],
+      [improvementAreas, improvementAreasRequired],
+      [actionItems, actionItemsRequired],
+    ].some(([value, needed]) => needed && !(value as string).trim());
+    if (missingFeedback) setTriedSave(true);
+    if (!interactionDate || !takenBy || topics.length === 0 || missingSubtopics || missingSteps || missingFeedback) return;
 
     const log: InteractionLog = {
       ...(editing ?? {}),
@@ -572,8 +590,9 @@ export function PostInteractionModal({
                 value={questionsAsked}
                 onChange={(e) => setQuestionsAsked(e.target.value)}
                 placeholder="1) Declare a variable in C++ / size of int&#10;2) How to take input & print output (a+b)..."
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 font-mono text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`w-full rounded-md border bg-white p-2.5 font-mono text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${feedbackClass(questionsAsked)}`}
               />
+              {blankAfterSave(questionsAsked) && <p className="mt-1 text-[11px] text-rose-500">Enter the questions asked.</p>}
             </div>
 
             <div>
@@ -586,8 +605,9 @@ export function PostInteractionModal({
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 placeholder="1) Knows int vs long long distinction, but struggles with implementation.&#10;2) Got stuck explaining range/constraint handling..."
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`w-full rounded-md border bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${feedbackClass(remarks)}`}
               />
+              {blankAfterSave(remarks) && <p className="mt-1 text-[11px] text-rose-500">Enter your remarks.</p>}
             </div>
           </div>
 
@@ -595,28 +615,32 @@ export function PostInteractionModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Performed Well (Concepts/Topics)
+                Performed Well (Concepts/Topics) {performedWellRequired && <span className="text-rose-500">*</span>}
               </label>
               <textarea
                 rows={2}
+                required={performedWellRequired}
                 value={performedWell}
                 onChange={(e) => setPerformedWell(e.target.value)}
                 placeholder="1) Correct I/O syntax&#10;2) Understood float vs double"
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`w-full rounded-md border bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${feedbackClass(performedWell, performedWellRequired)}`}
               />
+              {blankAfterSave(performedWell, performedWellRequired) &&<p className="mt-1 text-[11px] text-rose-500">Enter what the student did well.</p>}
             </div>
 
             <div>
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Improvement Areas
+                Improvement Areas {improvementAreasRequired && <span className="text-rose-500">*</span>}
               </label>
               <textarea
                 rows={2}
+                required={improvementAreasRequired}
                 value={improvementAreas}
                 onChange={(e) => setImprovementAreas(e.target.value)}
                 placeholder="ASCII character arithmetic, 10^6 integer constraints"
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`w-full rounded-md border bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${feedbackClass(improvementAreas, improvementAreasRequired)}`}
               />
+              {blankAfterSave(improvementAreas, improvementAreasRequired) &&<p className="mt-1 text-[11px] text-rose-500">Enter the improvement areas.</p>}
             </div>
           </div>
 
@@ -638,15 +662,17 @@ export function PostInteractionModal({
 
             <div>
               <label className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Action Items
+                Action Items {actionItemsRequired && <span className="text-rose-500">*</span>}
               </label>
               <textarea
                 rows={2}
+                required={actionItemsRequired}
                 value={actionItems}
                 onChange={(e) => setActionItems(e.target.value)}
                 placeholder="1) Practice implementation problems across all Level-0 topics"
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`w-full rounded-md border bg-white p-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-100 ${feedbackClass(actionItems, actionItemsRequired)}`}
               />
+              {blankAfterSave(actionItems, actionItemsRequired) &&<p className="mt-1 text-[11px] text-rose-500">Enter the action items.</p>}
             </div>
           </div>
 

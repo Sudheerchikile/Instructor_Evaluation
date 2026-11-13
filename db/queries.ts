@@ -298,6 +298,24 @@ export async function insertInteraction(
 const STATUSES = ['Need to Revisit', 'Cleared', 'In Progress'];
 
 // Field checks shared by creating and editing an interaction.
+// Feedback an interaction must carry (same rule as the Log Interaction form). Questions asked and remarks: always.
+// Performed well, improvement areas and action items (required from 2026-11-13): always for a new interaction; on an
+// edit only if the interaction already had that text, so older logs saved without them can still be corrected.
+type FeedbackKey = 'questionsAsked' | 'remarks' | 'performedWell' | 'improvementAreas' | 'actionItems';
+const FEEDBACK_LABELS: Record<FeedbackKey, string> = {
+  questionsAsked: 'Questions asked', remarks: 'Remarks', performedWell: 'Performed well',
+  improvementAreas: 'Improvement areas', actionItems: 'Action items',
+};
+const hasText = (value: string | undefined | null) => !!(value ?? '').trim();
+
+function validateFeedback(log: Pick<InteractionLog, FeedbackKey>, previous?: Pick<InteractionLog, FeedbackKey>) {
+  const keys = (Object.keys(FEEDBACK_LABELS) as FeedbackKey[]).filter(
+    (key) => key === 'questionsAsked' || key === 'remarks' || !previous || hasText(previous[key])
+  );
+  const blank = keys.filter((key) => !hasText(log[key])).map((key) => FEEDBACK_LABELS[key]);
+  if (blank.length) throw new ValidationError(`Fill in: ${blank.join(', ')}.`);
+}
+
 function validateInteractionFields(log: Pick<InteractionLog, 'date' | 'rating' | 'statusPostInteraction'>) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(log.date || '')) throw new ValidationError('Interaction date must be YYYY-MM-DD.');
   // No future-dated interactions. The server runs in UTC; +14h covers every user timezone's "today".
@@ -400,6 +418,7 @@ export async function updateInteraction(
 
   const next = { ...current, ...patch };
   validateInteractionFields(next);
+  validateFeedback(next, current);
   validateSubtopics(current.level, next.topics, next.subtopics);
 
   const client = await getPool().connect();
@@ -431,6 +450,7 @@ export async function updateInteraction(
 
 export async function addInteraction(log: InteractionLog, actor: InstructorUser): Promise<{ student: Student; interaction: InteractionLog }> {
   validateInteractionFields(log);
+  validateFeedback(log);
 
   const client = await getPool().connect();
   try {
