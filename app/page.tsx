@@ -26,7 +26,9 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<InstructorUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("all-students");
-  const [selectedLogDate, setSelectedLogDate] = useState<string>(todayLocal());
+  // Today's Interactions date range (inclusive). Both ends start on today.
+  const [logFromDate, setLogFromDate] = useState<string>(todayLocal());
+  const [logToDate, setLogToDate] = useState<string>(todayLocal());
 
   // The session lives in an httpOnly cookie; the server tells us who is signed in.
   useEffect(() => {
@@ -191,17 +193,22 @@ export default function Home() {
   };
   const handleExportCSV = () => exportInteractionsToCSV(interactions);
 
+  // A reversed range is read the right way round; across several days the latest date comes first.
+  const [logFrom, logTo] = logFromDate && logToDate && logFromDate > logToDate ? [logToDate, logFromDate] : [logFromDate, logToDate];
+  const logRangeFileTag = logFrom === logTo ? logFrom : `${logFrom}_to_${logTo}`;
   const filteredLogsForDate = useMemo(() => {
-    return interactions.filter((log) => log.date === selectedLogDate);
-  }, [interactions, selectedLogDate]);
+    return interactions
+      .filter((log) => (!logFrom || log.date >= logFrom) && (!logTo || log.date <= logTo))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [interactions, logFrom, logTo]);
 
   // Navbar Export follows the open page: Directory → every student, My Students → the instructor's students,
-  // Today's Interactions → the interactions of the date shown there, anything else → all interactions.
+  // Today's Interactions → the interactions of the date range shown there, anything else → all interactions.
   const studentStatusLabel = (s: Student) => STATUS_META[statusKeyOf(s)].label;
   const handleNavbarExport = () => {
     if (activeTab === "all-students") exportStudentsToCSV(students, studentStatusLabel, "dsa_students");
     else if (activeTab === "my-students") exportStudentsToCSV(students.filter((s) => isStudentAssignedTo(s, currentUser)), studentStatusLabel, "dsa_my_students");
-    else if (activeTab === "logs") exportInteractionsToCSV(filteredLogsForDate, selectedLogDate);
+    else if (activeTab === "logs") exportInteractionsToCSV(filteredLogsForDate, logRangeFileTag);
     else handleExportCSV();
   };
 
@@ -270,9 +277,11 @@ export default function Home() {
         {activeTab === "logs" && (
           <InteractionLogsTable
             interactions={filteredLogsForDate}
-            selectedDate={selectedLogDate}
-            onDateChange={setSelectedLogDate}
-            onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate, selectedLogDate)}
+            fromDate={logFrom}
+            toDate={logTo}
+            onFromDateChange={setLogFromDate}
+            onToDateChange={setLogToDate}
+            onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate, logRangeFileTag)}
             currentInstructor={currentInstructor}
             canEdit={canEditInteraction}
             onEdit={handleEditInteraction}
