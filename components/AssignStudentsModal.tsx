@@ -14,7 +14,7 @@ interface AssignStudentsModalProps {
   onAssigned: (result: CreateInstructorResult) => void;
 }
 
-// Admin: give an existing instructor more students. Each listed student moves from their current instructor.
+// Admin or senior instructor: give an existing instructor more students. Each listed student moves from their current instructor.
 export function AssignStudentsModal({ instructor, students, onClose, onAssigned }: AssignStudentsModalProps) {
   const [rollText, setRollText] = useState('');
   const [error, setError] = useState('');

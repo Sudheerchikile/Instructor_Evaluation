@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
   }, ['admin', 'instructor']);
 }
 
-// Add an instructor (login + assigned students). Admin only.
+// Add an instructor (login + assigned students). Admins and senior instructors; recorded in Change history.
 export async function POST(request: NextRequest) {
-  return withUser(request, async () => {
+  return withUser(request, async (user) => {
     const body = (await request.json().catch(() => ({}))) as Partial<NewInstructorInput>;
     const result = await createInstructor({
       name: String(body.name ?? ''),
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       email: String(body.email ?? ''),
       password: String(body.password ?? ''),
       studentIds: Array.isArray(body.studentIds) ? body.studentIds.map(String) : [],
-    });
+    }, user);
     return Response.json(result, { status: 201 });
-  }, ['admin']);
+  }, ['admin', 'instructor']);
 }

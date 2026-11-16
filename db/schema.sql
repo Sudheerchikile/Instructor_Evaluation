@@ -40,8 +40,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Senior instructors: instructors (own students, log interactions) who can also read the admin pages
--- (the Instructors page). They cannot add instructors or assign students; that stays admin-only.
+-- Senior instructors: instructors (own students, log interactions) who can also open the Instructors page,
+-- add instructors and assign students (since 2026-11-16). Every add/assign is recorded in instructor_changes.
 -- Set by hand, e.g. UPDATE users SET is_senior = true WHERE email = '...'; db:users never changes it.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_senior BOOLEAN NOT NULL DEFAULT false;
 
@@ -254,3 +254,20 @@ WITH run AS (
 UPDATE students SET current_subtopic = CASE current_topic WHEN 'Maths' THEN 'LCM & GCD' WHEN 'STL' THEN 'Set / Unordered Set' END
 WHERE level = 1 AND current_topic IN ('Maths', 'STL') AND current_subtopic IS NULL
   AND EXISTS (SELECT 1 FROM run);
+
+-- Who added which instructor and who moved which students (Instructors page: Add instructor / Assign students).
+-- One row per action, written in the same transaction as the change. Admins read it in "Change history".
+-- students: [{ id, name, fromId, fromName }] (fromId/fromName null = had no instructor). Names are copied so the
+-- log still reads correctly after someone is renamed or leaves.
+CREATE TABLE IF NOT EXISTS instructor_changes (
+  id               BIGSERIAL PRIMARY KEY,
+  action           TEXT NOT NULL CHECK (action IN ('add_instructor', 'assign_students')),
+  actor_id         TEXT NOT NULL,                  -- user id (no FK, so removing a login never blocks this)
+  actor_name       TEXT NOT NULL,
+  actor_role       TEXT NOT NULL,                  -- 'admin' or 'senior'
+  instructor_id    TEXT NOT NULL,                  -- instructor added, or who received the students
+  instructor_name  TEXT NOT NULL,
+  students         JSONB NOT NULL DEFAULT '[]',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS instructor_changes_created_idx ON instructor_changes (created_at DESC);

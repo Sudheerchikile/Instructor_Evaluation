@@ -1,4 +1,4 @@
-import { CreateInstructorResult, InstructorListEntry, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student } from './types';
+import { CreateInstructorResult, InstructorChange, InstructorListEntry, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student } from './types';
 
 // Browser-side calls to the app/api routes (PostgreSQL-backed).
 
@@ -35,6 +35,8 @@ export const createInstructor = (input: NewInstructorInput) =>
 
 export const assignStudentsToInstructor = (instructorId: string, studentIds: string[]) =>
   request<CreateInstructorResult>(`/api/instructors/${encodeURIComponent(instructorId)}/students`, { method: 'POST', body: JSON.stringify({ studentIds }) });
+
+export const fetchInstructorChanges = () => request<InstructorChange[]>('/api/instructors/changes');
 
 export const fetchStudents =() => request<Student[]>('/api/students');
 

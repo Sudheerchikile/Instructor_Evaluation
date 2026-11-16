@@ -102,6 +102,19 @@ export interface CreateInstructorResult {
   alreadyAssigned?: number; // assigning only: listed students who already belonged to this instructor
 }
 
+// One "Add instructor" or "Assign students" action, for the admin Change history.
+export interface InstructorChange {
+  id: string;
+  action: 'add_instructor' | 'assign_students';
+  actorId: string;
+  actorName: string;
+  actorRole: 'admin' | 'senior';
+  instructorId: string;   // instructor added, or who received the students
+  instructorName: string;
+  students: Array<{ id: string; name: string; fromId: string | null; fromName: string | null }>;
+  createdAt: string;      // ISO timestamp
+}
+
 // API shape: Instructor List entry, using the instructor's full name.
 export interface InstructorListEntry {
   id: string;
@@ -139,7 +152,7 @@ export interface InstructorUser {
   email: string;
   role: InstructorRole;
   instructorId: string | null; // directory id for instructors; null for admins
-  isSenior?: boolean;          // senior instructor: also reads the admin pages (no adding instructors or assigning)
+  isSenior?: boolean;          // senior instructor: also opens the Instructors page, adds instructors and assigns students
 }
 
 export interface InstructorSummary {

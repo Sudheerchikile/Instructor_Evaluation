@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCircle2, ChevronDown, ChevronRight, Copy, History, Loader2, Search, UserCheck, UserPlus, X } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, ChevronRight, Copy, History, ScrollText, Loader2, Search, UserCheck, UserPlus, X } from 'lucide-react';
 import { CreateInstructorResult, InstructorListEntry, InteractionLog, Student } from '@/lib/types';
 import { fetchInstructors } from '@/lib/api';
 import { normalizeTopicValue } from '@/lib/storage';
@@ -9,16 +9,18 @@ import { getStepOptionsForTopic, getSubtopicOptions, getTopicOptions, levelShort
 import { AddInstructorForm } from '@/components/AddInstructorForm';
 import { AssignStudentsModal } from '@/components/AssignStudentsModal';
 import { InstructorHistoryModal } from '@/components/InstructorHistoryModal';
+import { InstructorChangesModal } from '@/components/InstructorChangesModal';
 
 interface InstructorDirectoryTableProps {
   students: Student[];     // all students, for the Add instructor preview
   interactions: InteractionLog[]; // all interactions, for each instructor's history
   onChanged?: () => void;  // lets the page reload students after an assignment change
-  canManage?: boolean;     // admins: Add instructor and Assign students; view-only admins see the list only
+  canManage?: boolean;     // admins and senior instructors: Add instructor and Assign students
+  canViewChanges?: boolean; // admins: Change history (who added or assigned what)
 }
 
-// Admin-only Instructor List: full names, contact details and each instructor's assigned students.
-export function InstructorDirectoryTable({ students, interactions, onChanged, canManage = false }: InstructorDirectoryTableProps) {
+// Instructor List (admins and senior instructors): full names, contact details and each instructor's assigned students.
+export function InstructorDirectoryTable({ students, interactions, onChanged, canManage = false, canViewChanges = false }: InstructorDirectoryTableProps) {
   const [historyFor, setHistoryFor] = useState<InstructorListEntry | null>(null);
   const [instructors, setInstructors] = useState<InstructorListEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged, ca
   const [reloadKey, setReloadKey] = useState(0);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
 
   // Students with no instructor (e.g. "Yet to add" in the sheet), so the admin can find and assign them.
   const unassigned = useMemo(
@@ -101,6 +104,15 @@ export function InstructorDirectoryTable({ students, interactions, onChanged, ca
           <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
             <span className="font-mono">{instructors.length}</span> instructors · <span className="font-mono">{totalStudents}</span> students
           </div>
+          {canViewChanges && <button
+            type="button"
+            onClick={() => setShowChanges(true)}
+            title="Who added instructors and assigned students"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 cursor-pointer"
+          >
+            <ScrollText className="h-3.5 w-3.5" />
+            Change history
+          </button>}
           {canManage && <button
             type="button"
             onClick={() => setShowAdd(true)}
@@ -287,6 +299,7 @@ export function InstructorDirectoryTable({ students, interactions, onChanged, ca
         </table>
       </div>
 
+      {canViewChanges && showChanges && <InstructorChangesModal onClose={() => setShowChanges(false)} />}
       {historyFor && <InstructorHistoryModal instructor={historyFor} interactions={interactions} onClose={() => setHistoryFor(null)} />}
     </div>
   );

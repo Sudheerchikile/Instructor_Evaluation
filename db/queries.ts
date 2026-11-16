@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { getPool } from './client';
-import { CreateInstructorResult, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
+import { CreateInstructorResult, InstructorChange, InstructorListEntry, InstructorMatchStatus, InstructorOption, InstructorUser, InteractionLog, LevelConversion, NewInstructorInput, Student, StudentListEntry } from '../lib/types';
 import { DirectoryInstructor, matchInstructor } from '../lib/instructorDirectory';
 import { LEVELS, coerceStep, coerceSubtopic, getDefaultTopicForLevel, getReachedStepOptions, getStepOptionsForTopic, getSubtopicOptions, getTopicOptions } from '../lib/multiLevelCurriculum';
 import { normalizeInstructorName, statusAfterInteraction } from '../lib/storage';
@@ -532,9 +532,52 @@ interface InstructorRow {
 // Instructor List: full names, each with their assigned students.
 export const MIN_PASSWORD_LENGTH = 8;
 
-// Admin: create an instructor + login and assign students, all in one transaction. Assigning moves a
+// Only admins and senior instructors may add instructors or assign students.
+function assertCanManageInstructors(actor: InstructorUser) {
+  if (actor.role !== 'admin' && !actor.isSenior) throw new ForbiddenError('Only admins and senior instructors can do this.');
+}
+
+// Records who added an instructor or moved students, inside the caller's transaction.
+async function recordInstructorChange(
+  client: PoolClient,
+  actor: InstructorUser,
+  action: InstructorChange['action'],
+  instructor: { id: string; name: string },
+  students: CreateInstructorResult['assigned']
+) {
+  await client.query(
+    `INSERT INTO instructor_changes (action, actor_id, actor_name, actor_role, instructor_id, instructor_name, students)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      action, actor.id, actor.name, actor.role === 'admin' ? 'admin' : 'senior', instructor.id, instructor.name,
+      JSON.stringify(students.map((st) => ({ id: st.id, name: st.name, fromId: st.previousInstructorId ?? null, fromName: st.previousInstructor }))),
+    ]
+  );
+}
+
+// Admin: every add/assign, newest first.
+export async function getInstructorChanges(): Promise<InstructorChange[]> {
+  const { rows } = await getPool().query<{
+    id: string; action: InstructorChange['action']; actor_id: string; actor_name: string; actor_role: InstructorChange['actorRole'];
+    instructor_id: string; instructor_name: string; students: InstructorChange['students']; created_at: Date;
+  }>('SELECT * FROM instructor_changes ORDER BY created_at DESC, id DESC');
+  return rows.map((r) => ({
+    id: String(r.id),
+    action: r.action,
+    actorId: r.actor_id,
+    actorName: r.actor_name,
+    actorRole: r.actor_role,
+    instructorId: r.instructor_id,
+    instructorName: r.instructor_name,
+    students: r.students,
+    createdAt: r.created_at.toISOString(),
+  }));
+}
+
+// Admin or senior: create an instructor + login and assign students, all in one transaction. Assigning moves a
 // student from whoever had them (a student has exactly one instructor), so every count updates.
-export async function createInstructor(input: NewInstructorInput): Promise<CreateInstructorResult> {
+export async function createInstructor(input: NewInstructorInput, actor: InstructorUser): Promise<CreateInstructorResult> {
+  assertCanManageInstructors(actor);
   const name = (input.name || '').trim().replace(/\s+/g, ' ');
   const firstName = (input.firstName || '').trim().replace(/\s+/g, ' ');
   const email = (input.email || '').trim().toLowerCase();
@@ -581,6 +624,7 @@ export async function createInstructor(input: NewInstructorInput): Promise<Creat
       [id, name, email, await hashPassword(password)]
     );
     await moveStudents(client, id, firstName, studentIds);
+    await recordInstructorChange(client, actor, 'add_instructor', { id, name }, found);
     await client.query('COMMIT');
 
     return { instructor: { id, name, firstName, email }, assigned: found };
@@ -620,9 +664,10 @@ async function moveStudents(client: PoolClient, instructorId: string, firstName:
 const cleanRollNumbers = (ids: string[] | undefined) =>
   Array.from(new Set((ids || []).map((id) => String(id).trim().toUpperCase()).filter(Boolean)));
 
-// Admin: assign students to an existing instructor, moving them from their current instructor, in one
-// transaction. Students who already belong to this instructor are left as they are.
-export async function assignStudentsToInstructor(instructorId: string, rollNumbers: string[]): Promise<CreateInstructorResult> {
+// Admin or senior: assign students to an existing instructor, moving them from their current instructor, in one
+// transaction. Students who already belong to this instructor are left as they are (and are not logged).
+export async function assignStudentsToInstructor(instructorId: string, rollNumbers: string[], actor: InstructorUser): Promise<CreateInstructorResult> {
+  assertCanManageInstructors(actor);
   const studentIds = cleanRollNumbers(rollNumbers);
   if (!studentIds.length) throw new ValidationError('Enter at least one roll number.');
 
@@ -638,6 +683,7 @@ export async function assignStudentsToInstructor(instructorId: string, rollNumbe
     const found = await findStudentsToAssign(client, studentIds);
     const toMove = found.filter((s) => s.previousInstructorId !== instructor.id);
     await moveStudents(client, instructor.id, instructor.first_name, toMove.map((s) => s.id));
+    if (toMove.length) await recordInstructorChange(client, actor, 'assign_students', { id: instructor.id, name: instructor.full_name }, toMove);
     await client.query('COMMIT');
 
     return {
