@@ -277,8 +277,8 @@ export default function Home() {
         {activeTab === "logs" && (
           <InteractionLogsTable
             interactions={filteredLogsForDate}
-            fromDate={logFrom}
-            toDate={logTo}
+            fromDate={logFromDate}
+            toDate={logToDate}
             onFromDateChange={setLogFromDate}
             onToDateChange={setLogToDate}
             onExportCSV={() => exportInteractionsToCSV(filteredLogsForDate, logRangeFileTag)}

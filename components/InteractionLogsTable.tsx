@@ -17,8 +17,8 @@ import {
 
 interface InteractionLogsTableProps {
   interactions: InteractionLog[];
-  fromDate: string;  // inclusive range, already in order (from <= to)
-  toDate: string;
+  fromDate: string;  // exactly as picked; the boxes never change each other
+  toDate: string;    // (a reversed range is read the right way round for the list and headings)
   onFromDateChange: (date: string) => void;
   onToDateChange: (date: string) => void;
   onExportCSV: () => void;
@@ -57,9 +57,11 @@ export function InteractionLogsTable({
   });
 
   const today = todayLocal();
-  const singleDay = fromDate === toDate;
-  const isToday = singleDay && fromDate === today;
-  const rangeLabel = singleDay ? fromDate : `${fromDate} to ${toDate}`;
+  // Headings use the range in order; the inputs below keep the raw values.
+  const [rangeFrom, rangeTo] = fromDate > toDate ? [toDate, fromDate] : [fromDate, toDate];
+  const singleDay = rangeFrom === rangeTo;
+  const isToday = singleDay && rangeFrom === today;
+  const rangeLabel = singleDay ? rangeFrom : `${rangeFrom} to ${rangeTo}`;
   const dateInputClass = "rounded border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-800 focus:border-zinc-400 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:[color-scheme:dark]";
 
   return (
@@ -70,7 +72,7 @@ export function InteractionLogsTable({
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
-              {isToday ? "Today's Interactions" : singleDay ? `Interactions for ${fromDate}` : `Interactions from ${fromDate} to ${toDate}`}
+              {isToday ? "Today's Interactions" : singleDay ? `Interactions for ${rangeFrom}` : `Interactions from ${rangeFrom} to ${rangeTo}`}
             </h2>
             <span className="font-mono text-xs text-zinc-500">
               ({rangeLabel} • {interactions.length} {interactions.length === 1 ? 'record' : 'records'})
