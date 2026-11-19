@@ -22,7 +22,7 @@ export const LEVEL_TOPIC_MAP: Record<string, string[]> = {
   'Level 1': ['Maths', 'STL', 'Arrays', 'String'], // "Array - Basics" merged into Arrays (2026-10-14)
   'Level 2': ['Recursion - Basics', 'Sorting', 'Binary Search'],
   'Level 3': ['Two pointers / Sliding window', 'Greedy Algorithms'],
-  'Level 4': ['Bit Manipulation', 'Stack & Queues', 'Stack - Monotonic Stack'],
+  'Level 4': ['Bit Manipulation', 'Stack - Monotonic Stack'], // "Stack & Queues" removed (2026-11-19)
   'Level 5': ['Heaps / PQ\'s', 'Linked list', 'Recursion - Advanced', 'AdHoc'],
   'Level 6': ['Dynamic Programming'],
   'Level 7': ['Binary Trees', 'Binary Search Trees', 'Graphs', 'Advanced Graph'],
@@ -37,7 +37,17 @@ const SUBTOPIC_MAP: Record<string, string[]> = {
   'Level 1|STL': ['Set / Unordered Set', 'Map / Unordered Map', 'Stack', 'Queue'],
   'Level 1|Arrays': ['Array Traversal', 'Prefix & Suffix sum', "Kadane's Algo", 'Array Adhoc', 'Array + Map / Set'],
   // String has no subtopics (user, 2026-10-27).
+  'Level 2|Binary Search': ['Binary Search (1D, 2D)', 'Binary Search on Answers'],
+  'Level 3|Two pointers / Sliding window': ['Fixed and Variable Size', 'Same Side and Opposite Ends'],
+  'Level 5|Linked list': ['Singly Linked List', 'Doubly Linked List'],
 };
+
+// Topics whose subtopics were added after interactions had already been logged for them (2026-11-19). A Cleared
+// interaction for one of these topics with no subtopics recorded (logged before the subtopics existed) counts as
+// clearing every subtopic of the topic (user, 2026-11-19). Not Level 1: its older logs clear no subtopic (decided 14 Oct).
+const OLD_CLEARED_COVERS_ALL_SUBTOPICS = new Set(['Level 2|Binary Search', 'Level 3|Two pointers / Sliding window', 'Level 5|Linked list']);
+
+export const oldClearedCoversAllSubtopics = (level: string, topic: string) => OLD_CLEARED_COVERS_ALL_SUBTOPICS.has(`${level}|${topic.trim()}`);
 
 export function getSubtopicOptions(level: string, topic: string | undefined): string[] {
   return SUBTOPIC_MAP[`${level}|${(topic || '').trim()}`] ?? [];

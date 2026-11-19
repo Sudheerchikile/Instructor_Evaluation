@@ -1,4 +1,4 @@
-import { LEVELS, getSubtopicOptions, getTopicOptions } from './multiLevelCurriculum';
+import { LEVELS, getSubtopicOptions, getTopicOptions, oldClearedCoversAllSubtopics } from './multiLevelCurriculum';
 
 // What a level conversion means (decided 2026-10-13). Applied in SQL in getLevelConversions (db/queries.ts).
 //  - From STRICT_RULE_FROM: a student has converted from Level N once every required topic of Level N has its own
@@ -20,11 +20,16 @@ export function requiredTopics(level: string): string[] {
   return getTopicOptions(level).filter((topic) => !skip.includes(topic));
 }
 
-// For SQL (levels as numbers): { "0": [{ "topic": "If else", "subtopics": [] }, ...],
-//                                "1": [{ "topic": "Maths", "subtopics": ["Digit Manipulation", ...] }, ...] }
-export function requiredTopicsByLevelNumber(): Record<string, Array<{ topic: string; subtopics: string[] }>> {
+// For SQL (levels as numbers): { "0": [{ "topic": "If else", "subtopics": [], "oldClearedCoversAll": false }, ...],
+//                                "1": [{ "topic": "Maths", "subtopics": ["Digit Manipulation", ...], ... }, ...] }
+// oldClearedCoversAll: a Cleared interaction for the topic with no subtopics recorded clears all its subtopics.
+export function requiredTopicsByLevelNumber(): Record<string, Array<{ topic: string; subtopics: string[]; oldClearedCoversAll: boolean }>> {
   return Object.fromEntries(LEVELS.map((level, index) => [
     String(index),
-    requiredTopics(level).map((topic) => ({ topic, subtopics: getSubtopicOptions(level, topic) })),
+    requiredTopics(level).map((topic) => ({
+      topic,
+      subtopics: getSubtopicOptions(level, topic),
+      oldClearedCoversAll: oldClearedCoversAllSubtopics(level, topic),
+    })),
   ]));
 }

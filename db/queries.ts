@@ -173,7 +173,9 @@ export async function updateStudentProgress(
 //      from STRICT_RULE_FROM: counted only when every required topic of Level N has its own Cleared interaction at
 //        Level N, dated by the Cleared date of the topic cleared last (each topic's first Cleared date, any order).
 //        A topic with subtopics counts once each of its subtopics has a Cleared interaction listing it (the
-//        interaction's `subtopics`). Topic and subtopic names match loosely (topicKeySql below).
+//        interaction's `subtopics`). Topic and subtopic names match loosely (topicKeySql below). For topics whose
+//        subtopics came later (oldClearedCoversAllSubtopics), a Cleared log of the topic with no subtopics recorded
+//        clears all its subtopics.
 //        Otherwise `incomplete`: the card lists it as not counted.
 //  - `estimated` marks changes rebuilt from interaction history (before tracking started).
 // Topic names are compared loosely (case, spaces, punctuation and a plural "s" ignored), because older interactions
@@ -184,7 +186,8 @@ export async function getLevelConversions(): Promise<LevelConversion[]> {
   const { rows } = await getPool().query<LevelConversion>(
     `WITH required AS (
        -- one row per required topic, or per subtopic for a topic that has subtopics (sub is NULL otherwise)
-       SELECT e.key::int AS lvl, ${topicKeySql("x->>'topic'")} AS topic, ${topicKeySql('s.sub')} AS sub
+       SELECT e.key::int AS lvl, ${topicKeySql("x->>'topic'")} AS topic, ${topicKeySql('s.sub')} AS sub,
+              COALESCE((x->>'oldClearedCoversAll')::boolean, false) AS old_covers_all
        FROM jsonb_each($1::jsonb) AS e
        CROSS JOIN LATERAL jsonb_array_elements(e.value) AS x
        LEFT JOIN LATERAL jsonb_array_elements_text(x->'subtopics') AS s(sub) ON true
@@ -197,7 +200,9 @@ export async function getLevelConversions(): Promise<LevelConversion[]> {
        WHERE it.status_post_interaction = 'Cleared' AND it.subtopics <> ''
        GROUP BY 1, 2, 3, 4
      ), first_cleared AS (
-       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, ${topicKeySql('t')} AS topic, min(it.date) AS cleared_on
+       SELECT it.student_id, COALESCE(it.level, 0) AS lvl, ${topicKeySql('t')} AS topic, min(it.date) AS cleared_on,
+              -- logs with no subtopics recorded: for oldClearedCoversAll topics they clear every subtopic
+              min(it.date) FILTER (WHERE btrim(it.subtopics) = '') AS cleared_without_subtopics_on
        FROM interactions it CROSS JOIN LATERAL unnest(string_to_array(it.topics, ',')) AS t
        WHERE it.status_post_interaction = 'Cleared'
        GROUP BY 1, 2, 3
@@ -216,13 +221,16 @@ export async function getLevelConversions(): Promise<LevelConversion[]> {
        FROM ups u ORDER BY u.student_id, u.boundary, u.changed_at DESC, u.id DESC
      ), strict AS (
        SELECT l.student_id, l.boundary,
-              CASE WHEN bool_and(COALESCE(fc.cleared_on, fs.cleared_on) IS NOT NULL)
-                   THEN max(COALESCE(fc.cleared_on, fs.cleared_on)) END AS completed_on
+              CASE WHEN bool_and(COALESCE(fc.cleared_on, LEAST(fs.cleared_on, fo.cleared_without_subtopics_on)) IS NOT NULL)
+                   THEN max(COALESCE(fc.cleared_on, LEAST(fs.cleared_on, fo.cleared_without_subtopics_on))) END AS completed_on
        FROM latest l
        JOIN required r ON r.lvl = l.boundary
        LEFT JOIN first_cleared fc ON r.sub IS NULL AND fc.student_id = l.student_id AND fc.lvl = r.lvl AND fc.topic = r.topic
        LEFT JOIN first_cleared_sub fs ON r.sub IS NOT NULL AND fs.student_id = l.student_id AND fs.lvl = r.lvl
          AND fs.topic = r.topic AND fs.sub = r.sub
+       -- a subtopic also counts as cleared by an older Cleared log of its topic that recorded no subtopics
+       LEFT JOIN first_cleared fo ON r.sub IS NOT NULL AND r.old_covers_all AND fo.student_id = l.student_id
+         AND fo.lvl = r.lvl AND fo.topic = r.topic
        GROUP BY l.student_id, l.boundary
      ), dated AS (
        SELECT l.*,

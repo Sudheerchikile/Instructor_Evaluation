@@ -149,7 +149,6 @@ const TOPIC_ALIASES: Record<string, string[]> = {
   'Two pointers / Sliding window': ['twopointer', 'slidingwindow'],
   'Greedy Algorithms': ['greedy'],
   'Bit Manipulation': ['bitmanipulation', 'bits'],
-  'Stack & Queues': ['stack', 'queue'],
   'Stack - Monotonic Stack': ['monotonic'],
   "Heaps / PQ's": ['heap', 'priorityqueue', 'pq'],
   'Linked list': ['linkedlist'],
